@@ -2,33 +2,33 @@
 
 module Stream where
 
-record S A : Set where
+record Stream A : Set where
   coinductive
   constructor _◃_ 
   field
     head : A
-    tail : S A
+    tail : Stream A
 
-open S
+open Stream
 
 private variable A B C : Set
 
 open import Data.Nat
 open import Data.Vec as v using (Vec; []; _∷_)
 
-take : S A → {n : ℕ} → Vec A n
+take : Stream A → {n : ℕ} → Vec A n
 take s {zero} = []
 take s {suc n} = head s ∷ take (tail s) {n}
 
 open import Relation.Binary.PropositionalEquality ; open ≡-Reasoning
 
 infix 4 _≈[_]_
-_≈[_]_ : S A → ℕ → S A → Set
+_≈[_]_ : Stream A → ℕ → Stream A → Set
 s ≈[ n ] t = take s {n} ≡ take t
 
 infix 0 _→ˢ_
 _→ˢ_ : Set → Set → Set
-A →ˢ B = S A → S B
+A →ˢ B = Stream A → Stream B
 
 -- Influence of inputs are delayed by at least d steps
 delayed : ℕ → (A →ˢ B) → Set
