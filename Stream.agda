@@ -24,31 +24,30 @@ record Stream A : Set where
 
 open Stream
 
-take : Stream A → {n : ℕ} → Vec A n
-take s {zero } = []
-take s {suc _} = head s ∷ take (tail s)
+take : (n : ℕ) → Stream A → Vec A n
+take  zero   s = []
+take (suc n) s = head s ∷ take n (tail s)
 
--- TODO: maybe move n to front for convenient partial application.
--- TODO: maybe make n argument explicit for clearer proofs.
+-- Usually n can be inferred in take, but explicit n yields clearer proofs.
 
 drop : ℕ → Stream A → Stream A
 drop  zero   s = s
 drop (suc n) s = drop n (tail s)
 
 
-take-+ : ∀ {m n} {s : Stream A} → take s {m} ≡ v.take m (take s {m + n})
+take-+ : ∀ {m n} {s : Stream A} → take m s ≡ v.take m (take (m + n) s)
 take-+ {m = zero } = refl
 take-+ {m = suc m} {n} {s} =
   begin
-    take s {suc m}
+    take (suc m) s
   ≡⟨⟩
-    head s ∷ take (tail s) {m}
+    head s ∷ take m (tail s)
   ≡⟨ cong (head s ∷_) take-+ ⟩
-    head s ∷ v.take m (take (tail s) {m + n})
+    head s ∷ v.take m (take (m + n) (tail s))
   ≡˘⟨ unfold-take _ _ _ ⟩
-    v.take (suc m) (head s ∷ take (tail s) {m + n})
+    v.take (suc m) (head s ∷ take (m + n) (tail s))
   ≡⟨⟩
-    v.take (suc m) (take s {suc (m + n)})
+    v.take (suc m) (take (suc (m + n)) s)
   ∎
 
 drop-+ : ∀ m {n} {s : Stream A} → drop (m + n) s ≡ drop n (drop m s) -- TODO: ≗
@@ -66,7 +65,7 @@ drop-+ (suc m) = drop-+ m
 --     drop n (drop (suc m) s)
 --   ∎
 
-
+-- Stream functions
 infix 0 _→ˢ_
 _→ˢ_ : Set → Set → Set
 A →ˢ B = Stream A → Stream B
@@ -75,7 +74,7 @@ map : (A → B) → (A →ˢ B)
 head (map f s) = f (head s)
 tail (map f s) = map f (tail s)
 
-take-map : ∀ (f : A → B) s {n} → take (map f s) {n} ≡ v.map f (take s)
+take-map : ∀ (f : A → B) s {n} → take n (map f s) ≡ v.map f (take n s)
 take-map f s {zero } = refl
 take-map f s {suc n} rewrite take-map f (tail s) {n} = refl
 
@@ -95,7 +94,7 @@ head (zip (xs , ys)) = head xs , head ys
 tail (zip (xs , ys)) = zip (tail xs , tail ys)
 
 take-zip : ∀ ((s , t) : Stream A × Stream B) {n} →
-  take (zip (s , t)) {n} ≡ v.zip (take s) (take t)
+  take n (zip (s , t)) ≡ v.zip (take n s) (take n t)
 take-zip (s , t) {zero } = refl
 take-zip (s , t) {suc n} rewrite take-zip (tail s , tail t) {n} = refl
 
@@ -110,20 +109,7 @@ f ⊗ g = zip ∘ ×.map f g ∘ unzip
 
 infix 4 _≡[_]_
 _≡[_]_ : Stream A → ℕ → Stream A → Set
-s ≡[ n ] t = take s {n} ≡ take t
-
--- Weaken equivalence
-≡[+] : {s : Stream A} {t : Stream A} → s ≡[ m + n ] t → s ≡[ m ] t
-≡[+] {m = m} {n = n} {s = s} {t} eq =
-  begin
-    take s {m}
-  ≡⟨ take-+ ⟩
-    v.take m (take s {m + n})
-  ≡⟨ cong (v.take m) eq ⟩
-    v.take m (take t {m + n})
-  ≡˘⟨ take-+ ⟩
-    take t {m}
-  ∎
+s ≡[ n ] t = take n s ≡ take n t
 
 -- Input influence is delayed by at least d steps.
 delayed : ℕ → (A →ˢ B) → Set
@@ -146,13 +132,13 @@ map-causal : ∀ (f : A → B) → causal (map f)
 map-causal f {zero } s∼t = refl
 map-causal f {suc n} {s = s} {t} s∼t =
   begin
-    take (map f s)
+    take (suc n) (map f s)
   ≡⟨ take-map f s ⟩
-    v.map f (take s)
+    v.map f (take (suc n) s)
   ≡⟨ cong (v.map f) s∼t ⟩
-    v.map f (take t)
+    v.map f (take (suc n) t)
   ≡˘⟨ take-map f t ⟩
-    take (map f t)
+    take (suc n) (map f t)
   ∎
 
 delayˢ : A → A →ˢ A
@@ -162,15 +148,15 @@ delay-contractive : ∀ (a : A) → contractive (delayˢ a)
 delay-contractive _ {n = zero } _ = refl
 delay-contractive _ {n = suc n} s∼t rewrite s∼t = refl
 
--- delay-contractive a {n = suc n} s t s∼t =
+-- delay-contractive a {n = suc n} {s} {t} s∼t =
 --   begin
---     take (a ◃ s)
+--     take (suc (suc n)) (a ◃ s)
 --   ≡⟨⟩
---     a ∷ head s ∷ take (tail s)
+--     a ∷ head s ∷ take n (tail s)
 --   ≡⟨ cong (a ∷_) s∼t ⟩
---     a ∷ head t ∷ take (tail t)
+--     a ∷ head t ∷ take n (tail t)
 --   ≡⟨⟩
---     take (a ◃ t)
+--     take (suc (suc n)) (a ◃ t)
 --   ∎
 
 -- Sequential composition adds delays.
@@ -185,34 +171,38 @@ delayed-⊗-≡ : ∀ {f : A →ˢ C} {g : B →ˢ D} →
   delayed d f → delayed d g → delayed d (f ⊗ g)
 delayed-⊗-≡ {d = d} {f} {g} delayed-f delayed-g {n} {s} {t} s∼t =
   begin
-    take ((f ⊗ g) s)
+    take (d + n) ((f ⊗ g) s)
   ≡⟨⟩
-    take (zip (f (map proj₁ s) , g (map proj₂ s))) {d + n}
+    take (d + n) (zip (f (map proj₁ s) , g (map proj₂ s)))
   ≡⟨ take-zip _ ⟩
-    v.zip (take (f (map proj₁ s))) (take (g (map proj₂ s)))
+    v.zip (take (d + n) (f (map proj₁ s))) (take (d + n) (g (map proj₂ s)))
   ≡⟨ cong₂ v.zip (delayed-f (map-causal proj₁ s∼t))
                  (delayed-g (map-causal proj₂ s∼t)) ⟩
-    v.zip (take (f (map proj₁ t))) (take (g (map proj₂ t)))
+    v.zip (take (d + n) (f (map proj₁ t))) (take (d + n) (g (map proj₂ t)))
   ≡˘⟨ take-zip _ ⟩
-    take (zip (f (map proj₁ t) , g (map proj₂ t))) {d + n}
+    take (d + n) (zip (f (map proj₁ t) , g (map proj₂ t)))
   ≡⟨⟩
-    take ((f ⊗ g) t)
+    take (d + n) ((f ⊗ g) t)
   ∎
 
 ≡[≤] : ∀ {s t : Stream A} → m ≤ n → s ≡[ n ] t → s ≡[ m ] t
 ≡[≤] z≤n s∼ₙt = refl
 ≡[≤] {s = s} {t} (s≤s {m} m≤n) s∼ₙt with heads≡ , tails≡ ← ∷-injective s∼ₙt =
   begin
-    take s {suc m}
+    take (suc m) s
   ≡⟨⟩
-    head s ∷ take (tail s) {m}
+    head s ∷ take m (tail s)
   ≡⟨ cong₂ _∷_ heads≡ (≡[≤] {s = tail s} {tail t} m≤n tails≡) ⟩
-    head t ∷ take (tail t) {m}
+    head t ∷ take m (tail t)
   ≡⟨⟩
-    take t {suc m}
+    take (suc m) t
   ∎
 
--- I couldn't find this one in Data.Nat.Properties
+-- Variation (unused)
+≡[+] : {s : Stream A} {t : Stream A} → s ≡[ m + n ] t → s ≡[ m ] t
+≡[+] s∼t = ≡[≤] (m≤m+n _ _) s∼t
+
+-- I didn't find this one in Data.Nat.Properties. Is it there?
 ≤+ʳ : e ≤ d → e + n ≤ d + n
 ≤+ʳ z≤n = m≤n+m _ _
 ≤+ʳ (s≤s e≤d) = s≤s (≤+ʳ e≤d)
@@ -224,6 +214,9 @@ delayed-⊗ : ∀ {f : A →ˢ C} {g : B →ˢ D} →
   delayed d f → delayed e g → delayed (d ⊓ e) (f ⊗ g)
 delayed-⊗ del-f del-g s∼t =
   delayed-⊗-≡ (delayed-≤ (m⊓n≤m _ _) del-f) (delayed-≤ (m⊓n≤n _ _) del-g) s∼t
+
+-- TODO: Try defining delayed-⊗ directly rather than via delayed-⊗-≡ .
+
 
 -- Stream functions delayed by d
 infix 0 _→[_]_
@@ -239,8 +232,6 @@ _∘ᵈ_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
 infixr 7 _⊗ᵈ_
 _⊗ᵈ_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
 (f , delayed-f) ⊗ᵈ (g , delayed-g) = f ⊗ g , delayed-⊗ delayed-f delayed-g
-
--- TODO: use _⊓_ (min) of delays
 
 infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
