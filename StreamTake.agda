@@ -1,6 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
-module Stream where
+module StreamTake where
 
 open import Function using (_∘_; id; const)
 open import Data.Product as × using (Σ; ∃; _×_; _,_; proj₁; proj₂)
@@ -73,6 +73,10 @@ f ⊗ g = zip ∘ ×.map f g ∘ unzip
 infix 4 _≡[_]_
 _≡[_]_ : Stream A → ℕ → Stream A → Set
 s ≡[ n ] t = take n s ≡ take n t
+
+-- TODO: Try instead s ≡[ n ] t = ∀ i → i < n → s ! i ≡ t ! i , defining _!_
+-- instead of take. Proofs might be easier and more readily generalized beyond
+-- streams.
 
 -- Input influence is delayed by at least d steps.
 delayed : ℕ → (A →ˢ B) → Set

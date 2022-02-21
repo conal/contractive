@@ -2,7 +2,8 @@
 
 -- Load this module to check all modules.
 
-import Stream
+import StreamTake
+import StreamAt
 
 import Tree
 import Tree2
