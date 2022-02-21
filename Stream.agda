@@ -30,41 +30,6 @@ take (suc n) s = head s ∷ take n (tail s)
 
 -- Usually n can be inferred in take, but explicit n yields clearer proofs.
 
-drop : ℕ → Stream A → Stream A
-drop  zero   s = s
-drop (suc n) s = drop n (tail s)
-
-
-take-+ : ∀ {m n} {s : Stream A} → take m s ≡ v.take m (take (m + n) s)
-take-+ {m = zero } = refl
-take-+ {m = suc m} {n} {s} =
-  begin
-    take (suc m) s
-  ≡⟨⟩
-    head s ∷ take m (tail s)
-  ≡⟨ cong (head s ∷_) take-+ ⟩
-    head s ∷ v.take m (take (m + n) (tail s))
-  ≡˘⟨ unfold-take _ _ _ ⟩
-    v.take (suc m) (head s ∷ take (m + n) (tail s))
-  ≡⟨⟩
-    v.take (suc m) (take (suc (m + n)) s)
-  ∎
-
-drop-+ : ∀ m {n} {s : Stream A} → drop (m + n) s ≡ drop n (drop m s) -- TODO: ≗
-drop-+  zero   = refl
-drop-+ (suc m) = drop-+ m
-
--- drop-+ (suc m) {n} {s} =
---   begin
---     drop (suc m + n) s
---   ≡⟨⟩
---     drop (m + n) (tail s)
---   ≡⟨ drop-+ m ⟩
---     drop n (drop m (tail s))
---   ≡⟨⟩
---     drop n (drop (suc m) s)
---   ∎
-
 -- Stream functions
 infix 0 _→ˢ_
 _→ˢ_ : Set → Set → Set
@@ -105,8 +70,6 @@ infixr 7 _⊗_
 _⊗_ : (A →ˢ C) → (B →ˢ D) → (A × B →ˢ C × D)
 f ⊗ g = zip ∘ ×.map f g ∘ unzip
 
--- TODO: take {m} ≗ v.take m ∘ take {m + n}  (after swapping take's arguments)
-
 infix 4 _≡[_]_
 _≡[_]_ : Stream A → ℕ → Stream A → Set
 s ≡[ n ] t = take n s ≡ take n t
@@ -125,12 +88,12 @@ constant : (A →ˢ B) → Set
 constant f = ∀ {d} → delayed d f
 
 -- Constant functions never sense their inputs.
-const-constant : {bs : Stream B} → constant (const {B = Stream A} bs)
-const-constant s∼t = refl
+const-is-constant : {bs : Stream B} → constant (const {B = Stream A} bs)
+const-is-constant s∼t = refl
 
-map-causal : ∀ (f : A → B) → causal (map f)
-map-causal f {zero } s∼t = refl
-map-causal f {suc n} {s = s} {t} s∼t =
+map-is-causal : ∀ (f : A → B) → causal (map f)
+map-is-causal f {zero } s∼t = refl
+map-is-causal f {suc n} {s = s} {t} s∼t =
   begin
     take (suc n) (map f s)
   ≡⟨ take-map f s ⟩
@@ -144,11 +107,11 @@ map-causal f {suc n} {s = s} {t} s∼t =
 delayˢ : A → A →ˢ A
 delayˢ = _◃_
 
-delay-contractive : ∀ (a : A) → contractive (delayˢ a)
-delay-contractive _ {n = zero } _ = refl
-delay-contractive _ {n = suc n} s∼t rewrite s∼t = refl
+delay-is-contractive : ∀ (a : A) → contractive (delayˢ a)
+delay-is-contractive _ {n = zero } _ = refl
+delay-is-contractive _ {n = suc n} s∼t rewrite s∼t = refl
 
--- delay-contractive a {n = suc n} {s} {t} s∼t =
+-- delay-is-contractive a {n = suc n} {s} {t} s∼t =
 --   begin
 --     take (suc (suc n)) (a ◃ s)
 --   ≡⟨⟩
@@ -176,8 +139,8 @@ delayed-⊗-≡ {d = d} {f} {g} delayed-f delayed-g {n} {s} {t} s∼t =
     take (d + n) (zip (f (map proj₁ s) , g (map proj₂ s)))
   ≡⟨ take-zip _ ⟩
     v.zip (take (d + n) (f (map proj₁ s))) (take (d + n) (g (map proj₂ s)))
-  ≡⟨ cong₂ v.zip (delayed-f (map-causal proj₁ s∼t))
-                 (delayed-g (map-causal proj₂ s∼t)) ⟩
+  ≡⟨ cong₂ v.zip (delayed-f (map-is-causal proj₁ s∼t))
+                 (delayed-g (map-is-causal proj₂ s∼t)) ⟩
     v.zip (take (d + n) (f (map proj₁ t))) (take (d + n) (g (map proj₂ t)))
   ≡˘⟨ take-zip _ ⟩
     take (d + n) (zip (f (map proj₁ t) , g (map proj₂ t)))
@@ -202,18 +165,13 @@ delayed-⊗-≡ {d = d} {f} {g} delayed-f delayed-g {n} {s} {t} s∼t =
 ≡[+] : {s : Stream A} {t : Stream A} → s ≡[ m + n ] t → s ≡[ m ] t
 ≡[+] s∼t = ≡[≤] (m≤m+n _ _) s∼t
 
--- I didn't find this one in Data.Nat.Properties. Is it there?
-≤+ʳ : e ≤ d → e + n ≤ d + n
-≤+ʳ z≤n = m≤n+m _ _
-≤+ʳ (s≤s e≤d) = s≤s (≤+ʳ e≤d)
-
 delayed-≤ : ∀ {f : A →ˢ B} → e ≤ d → delayed d f → delayed e f
-delayed-≤ e≤d del-e {n} s∼t = ≡[≤] (≤+ʳ e≤d) (del-e s∼t)
+delayed-≤ e≤d del-e {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (del-e s∼t)
 
 delayed-⊗ : ∀ {f : A →ˢ C} {g : B →ˢ D} →
   delayed d f → delayed e g → delayed (d ⊓ e) (f ⊗ g)
-delayed-⊗ del-f del-g s∼t =
-  delayed-⊗-≡ (delayed-≤ (m⊓n≤m _ _) del-f) (delayed-≤ (m⊓n≤n _ _) del-g) s∼t
+delayed-⊗ del-f del-g =
+  delayed-⊗-≡ (delayed-≤ (m⊓n≤m _ _) del-f) (delayed-≤ (m⊓n≤n _ _) del-g)
 
 -- TODO: Try defining delayed-⊗ directly rather than via delayed-⊗-≡ .
 
@@ -238,16 +196,13 @@ _→⁰_ _→¹_ : Set → Set → Set
 A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
-open import Data.Bool
-
-invˢ : Bool →ˢ Bool
-invˢ = map not
-
 map⁰ : (A → B) → (A →[ 0 ] B)
-map⁰ f = map f , map-causal f
+map⁰ f = map f , map-is-causal f
 
 delay¹ : A → A →¹ A
-delay¹ a = delayˢ a , delay-contractive a
+delay¹ a = delayˢ a , delay-is-contractive a
+
+open import Data.Bool
 
 -- A stream function whose fixed point is a toggle flip-flop without enable.
 toggle′ : Bool →¹ Bool
