@@ -1,22 +1,18 @@
 {-# OPTIONS --guardedness #-}
 
--- This version defines and uses ! instead of take. Proofs are simpler and more
--- readily generalized beyond streams.
+-- Define and use ! instead of take. Simpler proofs, and more readily
+-- generalized beyond streams to other discrete shapes and to continuous time.
 
 module StreamAt where
 
 open import Function using (_∘_; id; const)
-open import Data.Product as × hiding (map; zip) -- using (Σ; ∃; _×_; _,_; proj₁; proj₂)
+open import Data.Product as × hiding (map; zip)
 open import Data.Nat
 open import Data.Nat.Properties
 open import Data.Vec as v using (Vec; []; _∷_)
 open import Data.Vec.Properties
 
 open import Relation.Binary.PropositionalEquality ; open ≡-Reasoning
-
-private variable
-  A B C D : Set
-  m n d e : ℕ
 
 record Stream A : Set where
   coinductive
@@ -27,6 +23,12 @@ record Stream A : Set where
 
 open Stream public
 
+private variable
+  A B C D : Set
+  m n d e : ℕ
+  s t : Stream A
+  f g : A → B
+
 infix 8 _!_
 _!_ : Stream A → ℕ → A
 s ! zero  = head s
@@ -36,6 +38,8 @@ s ! suc i = tail s ! i
 infix 0 _→ˢ_
 _→ˢ_ : Set → Set → Set
 A →ˢ B = Stream A → Stream B
+
+private variable fˢ gˢ hˢ : A →ˢ B
 
 map : (A → B) → (A →ˢ B)
 head (map f s) =     f (head s)
@@ -64,11 +68,11 @@ infix 4 _≡[_]_
 _≡[_]_ : Stream A → ℕ → Stream A → Set
 s ≡[ n ] t = ∀ i → i < n → s ! i ≡ t ! i
 
-≡[≤] : ∀ {s t : Stream A} → m ≤ n → s ≡[ n ] t → s ≡[ m ] t
+≡[≤] : m ≤ n → s ≡[ n ] t → s ≡[ m ] t
 ≡[≤] m≤n s∼ₙt i i<m = s∼ₙt i (≤-trans i<m m≤n)
 
 -- Variation (unused)
-≡[+] : {s : Stream A} {t : Stream A} → s ≡[ m + n ] t → s ≡[ m ] t
+≡[+] : s ≡[ m + n ] t → s ≡[ m ] t
 ≡[+] s∼t = ≡[≤] (m≤m+n _ _) s∼t
 
 -- Input influence is delayed by at least d steps.
@@ -84,15 +88,15 @@ contractive = delayed 1
 constant : (A →ˢ B) → Set
 constant f = ∀ {d} → delayed d f
 
-delayed-≡ : ∀ {f : A →ˢ B} → d ≡ e → delayed d f → delayed e f
-delayed-≡ {f = f} refl = id
+delayed-≡ : d ≡ e → delayed d fˢ → delayed e fˢ
+delayed-≡ refl = id
 
-delayed-≤ : ∀ {f : A →ˢ B} → e ≤ d → delayed d f → delayed e f
+delayed-≤ : e ≤ d → delayed d fˢ → delayed e fˢ
 delayed-≤ e≤d delayed-d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (delayed-d s∼t)
 
 
 -- Constant functions never sense their inputs.
-const-is-constant : {bs : Stream B} → constant (const {B = Stream A} bs)
+const-is-constant : constant {A = A} (const s)
 const-is-constant _ _ _ = refl
 
 map-is-causal : ∀ (f : A → B) → causal (map f)
@@ -113,11 +117,11 @@ map-is-causal f {n} {s} {t} s∼t i i<n
 delayˢ : A → A →ˢ A
 delayˢ = _◃_
 
-delay-is-contractive : ∀ (a : A) → contractive (delayˢ a)
-delay-is-contractive _ s∼t  zero   _ = refl
-delay-is-contractive _ s∼t (suc i) (s≤s i<n) = s∼t i i<n
+delay-is-contractive : ∀ {a : A} → contractive (delayˢ a)
+delay-is-contractive s∼t  zero       _     = refl
+delay-is-contractive s∼t (suc i) (s≤s i<n) = s∼t i i<n
 
--- delay-is-contractive a {suc n} {s} {t} s∼t (suc i) (s≤s i<n) =
+-- delay-is-contractive {a = a} {suc n} {s} {t} s∼t (suc i) (s≤s i<n) =
 --   begin
 --     delayˢ a s ! suc i
 --   ≡⟨⟩
@@ -129,38 +133,35 @@ delay-is-contractive _ s∼t (suc i) (s≤s i<n) = s∼t i i<n
 --   ∎
 
 -- Sequential composition adds delays.
-delayed-∘ : ∀ {f : A →ˢ B} {g : B →ˢ C} →
-  delayed e g → delayed d f → delayed (e + d) (g ∘ f)
-delayed-∘ {e = e} {d} delayed-g delayed-f {n} rewrite +-assoc e d n =
+delayed-∘ :
+  delayed e gˢ → delayed d fˢ → delayed (e + d) (gˢ ∘ fˢ)
+delayed-∘ {e = e} {d = d} delayed-g delayed-f {n} rewrite +-assoc e d n =
   delayed-g ∘ delayed-f
 
-delayed-∘-map : ∀ {f : A → B} {g : B →ˢ C} → delayed e g → delayed e (g ∘ map f)
-delayed-∘-map {e = e} {f = f} {g} delayed-g =
+delayed-∘-map : delayed e gˢ → delayed e (gˢ ∘ map f)
+delayed-∘-map {e = e} {f = f} delayed-g =
   delayed-≡ (+-identityʳ e) (delayed-∘ delayed-g (map-is-causal f))
 
--- Parallel composition requires equal delays.
-delayed-⊗-≡ : ∀ {f : A →ˢ C} {g : B →ˢ D} →
-  delayed d f → delayed d g → delayed d (f ⊗ g)
-
--- Parallel composition with equal delays
-delayed-⊗-≡ {f = f} {g} delayed-f delayed-g {n} {s = s} {t} s∼t i i<n =
+-- Parallel composition with equal delays.
+delayed-⊗-≡ : delayed d fˢ → delayed d gˢ → delayed d (fˢ ⊗ gˢ)
+delayed-⊗-≡ {fˢ = fˢ} {gˢ = gˢ} delayed-f delayed-g {n} {s = s} {t} s∼t i i<n =
   begin
-    (f ⊗ g) s ! i
+    (fˢ ⊗ gˢ) s ! i
   ≡⟨⟩
-    zip (f (map proj₁ s) , g (map proj₂ s)) ! i
+    zip (fˢ (map proj₁ s) , gˢ (map proj₂ s)) ! i
   ≡⟨ zip-! _ i ⟩
-    f (map proj₁ s) ! i , g (map proj₂ s) ! i
+    fˢ (map proj₁ s) ! i , gˢ (map proj₂ s) ! i
   ≡⟨ cong₂ _,_ (delayed-∘-map delayed-f s∼t i i<n)
                (delayed-∘-map delayed-g s∼t i i<n) ⟩
-    f (map proj₁ t) ! i , g (map proj₂ t) ! i
+    fˢ (map proj₁ t) ! i , gˢ (map proj₂ t) ! i
   ≡˘⟨ zip-! _ i ⟩
-    zip (f (map proj₁ t) , g (map proj₂ t)) ! i
+    zip (fˢ (map proj₁ t) , gˢ (map proj₂ t)) ! i
   ≡⟨⟩
-    (f ⊗ g) t ! i
+    (fˢ ⊗ gˢ) t ! i
   ∎
 
-delayed-⊗ : ∀ {f : A →ˢ C} {g : B →ˢ D} →
-  delayed d f → delayed e g → delayed (d ⊓ e) (f ⊗ g)
+-- Parallel composition with arbitrary delays
+delayed-⊗ : delayed d fˢ → delayed e gˢ → delayed (d ⊓ e) (fˢ ⊗ gˢ)
 delayed-⊗ del-f del-g =
   delayed-⊗-≡ (delayed-≤ (m⊓n≤m _ _) del-f) (delayed-≤ (m⊓n≤n _ _) del-g)
 
@@ -190,7 +191,7 @@ map⁰ : (A → B) → (A →[ 0 ] B)
 map⁰ f = map f , map-is-causal f
 
 delay¹ : A → A →¹ A
-delay¹ a = delayˢ a , delay-is-contractive a
+delay¹ a = delayˢ a , delay-is-contractive
 
 open import Data.Bool
 
