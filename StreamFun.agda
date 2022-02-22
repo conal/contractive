@@ -41,6 +41,10 @@ infixr 7 _⊗_
 _⊗_ : (A →ˢ C) → (B →ˢ D) → (A × B →ˢ C × D)
 f ⊗ g = zip ∘ ×.map f g ∘ unzip
 
+delayˢ : A → A →ˢ A
+delayˢ a s  zero   = a
+delayˢ a s (suc i) = s i
+
 infix 4 _≡[_]_
 _≡[_]_ : Stream A → ℕ → Stream A → Set
 s ≡[ n ] t = ∀ i → i < n → s i ≡ t i
@@ -73,20 +77,15 @@ constant f = ∀ {d} → f ↓ d
 ≤↓ e≤d ↓d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (↓d s∼t)
 
 
--- Constant functions never sense their inputs.
-const-is-constant : constant {A = A} (const s)
-const-is-constant _ _ _ = refl
-
 map-is-causal : ∀ (f : A → B) → causal (map f)
 map-is-causal f {n} {s} {t} s∼t i i<n rewrite s∼t i i<n = refl
-
-delayˢ : A → A →ˢ A
-delayˢ a s  zero   = a
-delayˢ a s (suc i) = s i
 
 delay-is-contractive : ∀ {a : A} → contractive (delayˢ a)
 delay-is-contractive s∼t  zero       _     = refl
 delay-is-contractive s∼t (suc i) (s≤s i<n) = s∼t i i<n
+
+const-is-constant : constant {A = A} (const s)
+const-is-constant _ _ _ = refl
 
 -- Sequential composition adds delays.
 infixr 9 _∘↓_
@@ -103,8 +102,7 @@ _∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
     (fˢ ⊗ gˢ) s i
   ≡⟨⟩
     fˢ (map proj₁ s) i , gˢ (map proj₂ s) i
-  ≡⟨ cong₂ _,_ (∘↓-map f↓ proj₁ s∼t i i<n)
-               (∘↓-map g↓ proj₂ s∼t i i<n) ⟩
+  ≡⟨ cong₂ _,_ (∘↓-map f↓ proj₁ s∼t i i<n) (∘↓-map g↓ proj₂ s∼t i i<n) ⟩
     fˢ (map proj₁ t) i , gˢ (map proj₂ t) i
   ≡⟨⟩
     (fˢ ⊗ gˢ) t i
