@@ -5,7 +5,7 @@
 
 module TreeFun (I : Set) where
 
-open import Function using (id; _∘_; const)
+open import Function using (id; const) renaming (_∘′_ to _∘_)
 open import Data.Product as × hiding (map; zip)
 open import Data.List as L hiding (map; zip; unzip)
 open import Data.Nat
@@ -30,7 +30,8 @@ A →ᵗ B = Tree A → Tree B
 private variable fᵗ gᵗ hᵗ : A →ᵗ B
 
 map : (A → B) → (A →ᵗ B)
-map f s = f ∘ s
+map = _∘_
+-- map f s = f ∘ s
 
 zip : Tree A × Tree B → Tree (A × B)
 zip = uncurry <_,_>
@@ -44,7 +45,7 @@ _⊗_ : (A →ᵗ C) → (B →ᵗ D) → (A × B →ᵗ C × D)
 f ⊗ g = zip ∘ ×.map f g ∘ unzip
 
 delayᵗ : A → A →ᵗ A
-delayᵗ a s  []   = a
+delayᵗ a s   []     = a
 delayᵗ a s (i ∷ is) = s is
 
 infix 4 _≡[_]_
@@ -64,19 +65,21 @@ _↓_ : (A →ᵗ B) → ℕ → Set
 f ↓ d = ∀ {n s t} → s ≡[ n ] t → f s ≡[ d + n ] f t
 
 causal : (A →ᵗ B) → Set
-causal = _↓ 0
+causal f = f ↓ 0
 
 contractive : (A →ᵗ B) → Set
-contractive = _↓ 1
+contractive f = f ↓ 1
 
 constant : (A →ᵗ B) → Set
 constant f = ∀ {d} → f ↓ d
 
+≤-↓ : e ≤ d → fᵗ ↓ d → fᵗ ↓ e
+≤-↓ e≤d ↓d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (↓d s∼t)
+
 ≡-↓ : d ≡ e → fᵗ ↓ d → fᵗ ↓ e
 ≡-↓ refl = id
 
-≤-↓ : e ≤ d → fᵗ ↓ d → fᵗ ↓ e
-≤-↓ e≤d ↓d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (↓d s∼t)
+-- ≡-↓ d≡e = ≤-↓ (≤-reflexive (sym d≡e))
 
 map-is-causal : ∀ (f : A → B) → causal (map f)
 map-is-causal f {n} {s} {t} s∼t i i<n rewrite s∼t i i<n = refl
@@ -115,8 +118,6 @@ infixr 7 _⊗↓_
 _⊗↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ⊗ gᵗ) ↓ (d ⊓ e)
 f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _) g↓
 
--- TODO: Try defining ⊗↓ directly rather than via ⊗↓-≡ .
-
 -- Stream functions delayed by d
 infix 0 _→[_]_
 _→[_]_ : Set → ℕ → Set → Set
@@ -137,8 +138,8 @@ _→⁰_ _→¹_ : Set → Set → Set
 A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
-map⁰ : (A → B) → (A →[ 0 ] B)
+map⁰ : (A → B) → (A →⁰ B)
 map⁰ f = map f , map-is-causal f
 
-delay¹ : A → A →¹ A
+delay¹ : A → (A →¹ A)
 delay¹ a = delayᵗ a , delay-is-contractive
