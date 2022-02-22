@@ -6,7 +6,8 @@ import StreamTake
 import StreamAt
 import StreamFun
 
-import Tree
-import Tree2
-import SizedTree
-import SizedTree2
+import BinTree
+import BinTree2
+import SizedBinTree
+import SizedBinTree2
+import BinTreeFun

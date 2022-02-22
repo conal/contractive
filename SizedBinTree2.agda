@@ -1,7 +1,7 @@
 {-# OPTIONS --guardedness --sized-types #-}
 -- Coinductive, size-typed, prezipped binary trees
 
-module SizedTree2 where
+module SizedBinTree2 where
 
 open import Data.Product as × hiding (map; zip)
 

@@ -1,6 +1,6 @@
 {-# OPTIONS --guardedness #-}
 
-module Tree2 where
+module BinTree2 where
 
 open import Data.Product as × hiding (map; zip)
 
