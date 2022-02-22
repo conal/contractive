@@ -6,8 +6,6 @@ open import Function using (_∘_; id; const)
 open import Data.Product as × hiding (map; zip)
 open import Data.Nat
 open import Data.Nat.Properties
-open import Data.Vec as v using (Vec; []; _∷_)
-open import Data.Vec.Properties
 
 open import Relation.Binary.PropositionalEquality ; open ≡-Reasoning
 
