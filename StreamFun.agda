@@ -70,11 +70,11 @@ contractive = _↓ 1
 constant : (A →ˢ B) → Set
 constant f = ∀ {d} → f ↓ d
 
-≡↓ : d ≡ e → fˢ ↓ d → fˢ ↓ e
-≡↓ refl = id
+≡-↓ : d ≡ e → fˢ ↓ d → fˢ ↓ e
+≡-↓ refl = id
 
-≤↓ : e ≤ d → fˢ ↓ d → fˢ ↓ e
-≤↓ e≤d ↓d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (↓d s∼t)
+≤-↓ : e ≤ d → fˢ ↓ d → fˢ ↓ e
+≤-↓ e≤d ↓d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (↓d s∼t)
 
 
 map-is-causal : ∀ (f : A → B) → causal (map f)
@@ -93,11 +93,12 @@ _∘↓_ : gˢ ↓ e → fˢ ↓ d → (gˢ ∘ fˢ) ↓ (e + d)
 _∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
 
 ∘↓-map : gˢ ↓ e → (f : A → B) → (gˢ ∘ map f) ↓ e
-∘↓-map {e = e} g↓ f = ≡↓ (+-identityʳ e) (g↓ ∘↓ map-is-causal f)
+∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map-is-causal f)
 
 -- Parallel composition with equal delays
-⊗↓-≡ : fˢ ↓ d → gˢ ↓ d → (fˢ ⊗ gˢ) ↓ d
-⊗↓-≡ {fˢ = fˢ} {gˢ = gˢ} f↓ g↓ {n} {s = s} {t} s∼t i i<n =
+infixr 7 _⊗↓≡_
+_⊗↓≡_ : fˢ ↓ d → gˢ ↓ d → (fˢ ⊗ gˢ) ↓ d
+_⊗↓≡_ {fˢ = fˢ} {gˢ = gˢ} f↓ g↓ {n} {s = s} {t} s∼t i i<n =
   begin
     (fˢ ⊗ gˢ) s i
   ≡⟨⟩
@@ -111,7 +112,7 @@ _∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
 -- Parallel composition with arbitrary delays
 infixr 7 _⊗↓_
 _⊗↓_ : fˢ ↓ d → gˢ ↓ e → (fˢ ⊗ gˢ) ↓ (d ⊓ e)
-del-f ⊗↓ del-g = ⊗↓-≡ (≤↓ (m⊓n≤m _ _) del-f) (≤↓ (m⊓n≤n _ _) del-g)
+f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _) g↓
 
 -- TODO: Try defining ⊗↓ directly rather than via ⊗↓-≡ .
 
