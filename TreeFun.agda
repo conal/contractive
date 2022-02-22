@@ -123,20 +123,20 @@ infix 0 _→[_]_
 _→[_]_ : Set → ℕ → Set → Set
 A →[ d ] B = Σ (A →ᵗ B) (_↓ d)
 
--- Sequential composition
-infixr 9 _∘ᵈ_
-_∘ᵈ_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
-(g , g↓) ∘ᵈ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
-
--- Parallel composition
-infixr 7 _⊗ᵈ_
-_⊗ᵈ_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
-(f , f↓) ⊗ᵈ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
-
 infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
 A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
+
+-- Sequential composition
+infixr 9 _∘̂_
+_∘̂_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
+(g , g↓) ∘̂ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
+
+-- Parallel composition
+infixr 7 _⊗̂_
+_⊗̂_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
+(f , f↓) ⊗̂ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
 
 map⁰ : (A → B) → (A →⁰ B)
 map⁰ f = map f , map-is-causal f
