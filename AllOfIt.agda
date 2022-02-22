@@ -4,6 +4,7 @@
 
 import StreamTake
 import StreamAt
+import StreamFun
 
 import Tree
 import Tree2
