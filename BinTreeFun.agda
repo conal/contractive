@@ -1,4 +1,3 @@
-{-# OPTIONS --guardedness #-}
 -- Infinite binary trees as functions
 
 -- TODO: Generalize streams (unary trees) and binary trees to k-ary trees, where

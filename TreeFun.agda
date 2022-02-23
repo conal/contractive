@@ -1,5 +1,3 @@
-{-# OPTIONS --guardedness #-}
-
 -- Infinite k-ary trees, where k is a type (not number). Generalizes streams and
 -- binary trees.
 
