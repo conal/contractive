@@ -73,9 +73,29 @@ zip (vals f , vals g) = vals [ f , g ]
 unzip : Values (A ×̇ B) → Values A × Values B
 unzip (vals h) = vals (h ∘ inj₁) , vals (h ∘ inj₂)
 
+reindex : ∀ {A B} → (Index B → Index A) → A →ᵗ B
+reindex f (vals h) = vals (h ∘ f)
+
+infixr 7 _▵_
+_▵_ : (A →ᵗ C) → (A →ᵗ D) → (A →ᵗ C ×̇ D)
+f ▵ g = zip ∘ < f , g >
+
+exl : A ×̇ B →ᵗ A
+exl = reindex inj₁
+
+exr : A ×̇ B →ᵗ B
+exr = reindex inj₂
+
+-- Then standard dup and ⊗ recipes
+
+dup : A →ᵗ A ×̇ A
+dup = id ▵ id
+
 infixr 7 _⊗_
 _⊗_ : (A →ᵗ C) → (B →ᵗ D) → (A ×̇ B →ᵗ C ×̇ D)
-f ⊗ g = zip ∘ ×.map f g ∘ unzip
+f ⊗ g = f ∘ exl ▵ g ∘ exr
+
+-- f ⊗ g = zip ∘ ×.map f g ∘ unzip
 
 
 Retime : (h : Time → Time) → Obj → Obj
@@ -153,16 +173,50 @@ private variable d e : Time
 ≡-↓ : d ≡ e → fᵗ ↓ d → fᵗ ↓ e
 ≡-↓ refl = id
 
+≡-+0-↓ : fᵗ ↓ (d + 0) → fᵗ ↓ d
+≡-+0-↓ {d = d} = ≡-↓ (+-identityʳ d)
+
+id↓ : causal {A} id
+id↓ = id
+
 module _ {d e} where
 
   infixr 9 _∘↓_
   _∘↓_ : gᵗ ↓ e → fᵗ ↓ d → (gᵗ ∘ fᵗ) ↓ (e + d)
   (g↓ ∘↓ f↓) {n} rewrite +-assoc e d n = g↓ ∘ f↓
 
+  infixr 7 _▵↓_
+  _▵↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ▵ gᵗ) ↓ (d ⊓ e)
+  (f↓ ▵↓ g↓) u~v = [ ≤-↓ (m⊓n≤m _ _) f↓ u~v , ≤-↓ (m⊓n≤n _ _) g↓ u~v ]
+
+-- reindex↓ : ∀ f → causal (reindex {A} {B} f)
+-- reindex↓ f u~v i d<e = u~v (f i) {!!}
+
+-- Goal: times A (f i) < e
+-- d<e : times B i < e
+
+-- TODO: Working on reindex↓. Meanwhile, two easily proved specializations: 
+
+reindex↓-inj₁ : causal (reindex {A ×̇ B} {A} inj₁)
+reindex↓-inj₁ u~v = u~v ∘ inj₁
+
+reindex↓-inj₂ : causal (reindex {A ×̇ B} {B} inj₂)
+reindex↓-inj₂ u~v = u~v ∘ inj₂
+
+exl↓ : causal (exl {A} {B})
+exl↓ = reindex↓-inj₁
+
+exr↓ : causal (exr {A} {B})
+exr↓ = reindex↓-inj₂
+
+dup↓ : causal (dup {A})
+dup↓ = id↓ ▵↓ id↓
+
+module _ {d e} where
+
   infixr 7 _⊗↓_
   _⊗↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ⊗ gᵗ) ↓ (d ⊓ e)
-  (f↓ ⊗↓ g↓) u~v = [ ≤-↓ (m⊓n≤m _ _) f↓ (u~v ∘ inj₁)
-                   , ≤-↓ (m⊓n≤n _ _) g↓ (u~v ∘ inj₂) ]
+  f↓ ⊗↓ g↓ = ≡-+0-↓ (f↓ ∘↓ exl↓) ▵↓ ≡-+0-↓ (g↓ ∘↓ exr↓)
 
 bump-is-causal : ∀ f → causal (bump {A} f)
 bump-is-causal f {n} {s} {t} s~t i i<n rewrite s~t i i<n = refl
@@ -190,7 +244,7 @@ delay-is-contractive = delayBy-↓
 const-is-constant : ∀ {y} → constant {A} {B} (const y)
 const-is-constant _ _ _ = refl
 
--- Stream functions delayed by d
+-- Functions delayed by d
 infix 0 _→[_]_
 _→[_]_ : Obj → ℕ → Obj → Set
 A →[ d ] B = Σ (A →ᵗ B) (_↓ d)
@@ -200,28 +254,80 @@ _→⁰_ _→¹_ : Obj → Obj → Set
 A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
--- Sequential composition
-infixr 9 _∘̂_
-_∘̂_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
-(g , g↓) ∘̂ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
+-- Delayed functions form an indexed cartesian category.
+module IndexedCategory where
 
--- Parallel composition
-infixr 7 _⊗̂_
-_⊗̂_ : (A →[ d ] C) → (B →[ e ] D) → (A ×̇ B →[ d ⊓ e ] C ×̇ D)
-(f , f↓) ⊗̂ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
+  idᵈ : A →⁰ A
+  idᵈ = id , id↓
 
-bump⁰ : (Atom → Atom) → (A →⁰ A)
-bump⁰ f = bump f , bump-is-causal f
+  -- Sequential composition
+  infixr 9 _∘̂_
+  _∘̂_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
+  (g , g↓) ∘̂ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
 
-delay¹ : A →¹ Delay A
-delay¹ = delayᵗ , delay-is-contractive
+  -- Parallel composition
+  infixr 7 _⊗̂_
+  _⊗̂_ : (A →[ d ] C) → (B →[ e ] D) → (A ×̇ B →[ d ⊓ e ] C ×̇ D)
+  (f , f↓) ⊗̂ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
 
-bump∘delay : (Atom → Atom) → A →¹ Delay A
-bump∘delay f = bump⁰ f ∘̂ delay¹
+  bumpᵈ : (Atom → Atom) → (A →⁰ A)
+  bumpᵈ f = bump f , bump-is-causal f
 
--- -- Or let Agda fill in the composite delays
--- bump∘delay′ : (Atom → Atom) → A →[ ? ] DelayBy ? A
--- bump∘delay′ f = bump⁰ f ∘̂ delay¹
+  delayByᵈ : (d : Time) → A →[ d ] DelayBy d A
+  delayByᵈ d = delayByᵗ d , delayBy-↓
 
--- delay∘bump∘delay : (Atom → Atom) → A →[ ? ] DelayBy ? A
--- delay∘bump∘delay f = delay¹ ∘̂ bump⁰ f ∘̂ delay¹
+  delayᵈ : A →¹ Delay A
+  delayᵈ = delayByᵈ 1
+  -- delayᵈ = delayᵗ , delay-is-contractive
+
+  bump∘̂delay : (Atom → Atom) → A →¹ Delay A
+  bump∘̂delay f = bumpᵈ f ∘̂ delayᵈ
+
+  -- -- Or let Agda fill in the composite delays
+  -- bump∘delay′ : (Atom → Atom) → A →[ ? ] DelayBy ? A
+  -- bump∘delay′ f = bumpᵈ f ∘̂ delayᵈ
+
+  -- bump∘delay′ : (Atom → Atom) → A →[ _ ] _
+
+  -- -- delay∘bump∘delay : (Atom → Atom) → A →[ {!!} ] DelayBy {!!} A
+  -- -- delay∘bump∘delay : (Atom → Atom) → A →[ {!!} ] {!!}
+  -- delay∘bump∘delay f = delayᵈ ∘̂ bumpᵈ f ∘̂ delayᵈ
+
+  -- bump⊗̂delay : (Atom → Atom) → A ×̇ B →⁰ A ×̇ Delay B
+  bump⊗̂delay : (Atom → Atom) → A ×̇ B →[ zero ] A ×̇ Delay B
+  bump⊗̂delay f = bumpᵈ f ⊗̂ delayᵈ
+
+-- Existentially wrapped cartesian category.
+module Category where
+
+  infix 0 _→ᵈ_
+  record _→ᵈ_ (A B : Obj) : Set where
+    constructor mk
+    field
+      {Δ} : Time
+      f : A →[ Δ ] B
+
+  module d = IndexedCategory
+
+  idᵈ : A →ᵈ A
+  idᵈ = mk d.idᵈ
+
+  infixr 9 _∘̂_
+  _∘̂_ : (B →ᵈ C) → (A →ᵈ B) → (A →ᵈ C)
+  mk g ∘̂ mk f = mk (g d.∘̂ f)
+
+  infixr 7 _⊗̂_
+  _⊗̂_ : (A →ᵈ C) → (B →ᵈ D) → (A ×̇ B →ᵈ C ×̇ D)
+  mk f ⊗̂ mk g = mk (f d.⊗̂ g)
+
+  bumpᵈ : (Atom → Atom) → (A →ᵈ A)
+  bumpᵈ f = mk (d.bumpᵈ f)
+
+  delayᵈ : A →ᵈ Delay A
+  delayᵈ = mk d.delayᵈ
+
+  delayByᵈ : (d : Time) → A →ᵈ DelayBy d A
+  delayByᵈ d = mk (d.delayByᵈ d)
+
+  bump∘̂delay : (Atom → Atom) → A →ᵈ Delay A
+  bump∘̂delay f = mk (d.bump∘̂delay f)
