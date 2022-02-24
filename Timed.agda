@@ -155,38 +155,19 @@ delay-is-contractive u~ₑv j (s≤s sd≤e) = u~ₑv j sd≤e
 const-is-constant : ∀ {y} → constant {A} {B} (const y)
 const-is-constant _ _ _ = refl
 
+-- ∘↓-map : gᵗ ↓ e → (f : A → B) → (gᵗ ∘ map f) ↓ e
+-- ∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map-is-causal f)
+
 -- Sequential composition adds delays.
 infixr 9 _∘↓_
 _∘↓_ : gᵗ ↓ e → fᵗ ↓ d → (gᵗ ∘ fᵗ) ↓ (e + d)
 _∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
-
--- ∘↓-map : gᵗ ↓ e → (f : A → B) → (gᵗ ∘ map f) ↓ e
--- ∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map-is-causal f)
-
--- Parallel composition with equal delays
-infixr 7 _⊗↓≡_
-_⊗↓≡_ : fᵗ ↓ d → gᵗ ↓ d → (fᵗ ⊗ gᵗ) ↓ d
-(f↓ ⊗↓≡ g↓) u~v = [ f↓ (u~v ∘ inj₁) , g↓ (u~v ∘ inj₂) ]
-
--- (f↓ ⊗↓≡ _ ) u~v (inj₁ i) = f↓ (u~v ∘ inj₁) i
--- (_  ⊗↓≡ g↓) u~v (inj₂ j) = g↓ (u~v ∘ inj₂) j
-
--- _⊗↓≡_ {fᵗ = fᵗ} {gᵗ = gᵗ} f↓ _ {u = u} {v} u~v (inj₁ i) t<d+e =
---   begin
---     (fᵗ ⊗ gᵗ) u ! inj₁ i
---   ≡⟨ f↓ (u~v ∘ inj₁) i t<d+e ⟩
---     (fᵗ ⊗ gᵗ) v ! inj₁ i
---   ∎
 
 -- Parallel composition with arbitrary delays
 infixr 7 _⊗↓_
 _⊗↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ⊗ gᵗ) ↓ (d ⊓ e)
 (f↓ ⊗↓ g↓) u~v = [ ≤-↓ (m⊓n≤m _ _) f↓ (u~v ∘ inj₁)
                  , ≤-↓ (m⊓n≤n _ _) g↓ (u~v ∘ inj₂) ]
-
--- f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _) g↓
-
--- TODO: Drop _⊗↓≡_.
 
 -- Stream functions delayed by d
 infix 0 _→[_]_
