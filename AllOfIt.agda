@@ -11,3 +11,5 @@ import BinTree2
 import SizedBinTree
 import SizedBinTree2
 import BinTreeFun
+
+import Timed

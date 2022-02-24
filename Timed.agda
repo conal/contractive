@@ -2,9 +2,7 @@
 module Timed (Atom : Set) where
 
 open import Function using (id; const) renaming (_∘_ to _∘_)
-open import Data.Product as × hiding (map; zip)
-  renaming (map₁ to first; map₂ to second)
--- open import Data.List as L hiding (map; zip; unzip)
+open import Data.Product as × hiding (zip)
 open import Data.Nat
 open import Data.Nat.Properties
 
@@ -61,9 +59,13 @@ private variable
   u v : Values A
   fᵗ gᵗ hᵗ : A →ᵗ B
 
--- map : (A → B) → (A →ᵗ B)
--- map = _∘_
--- -- map f s = f ∘ s
+-- Transform all atoms uniformly
+bump : (Atom → Atom) → A →ᵗ A
+bump f (vals at) = vals (f ∘ at)
+
+-- We'll probably have more sophisticated forms of mapping, in which we
+-- transform clusters of bits, e.g., number representations. Think of as indexed
+-- by a pair.
 
 zip : Values A × Values B → Values (A ×̇ B)
 zip (vals f , vals g) = vals [ f , g ]
@@ -86,13 +88,18 @@ Delay : Obj → Obj
 Delay = DelayBy 1
 
 retimeᵗ : (h : Time → Time) → A →ᵗ Retime h A
-retimeᵗ h (vals at) = vals at
+retimeᵗ _ (vals at) = vals at
 
 delayByᵗ : (d : Time) → A →ᵗ DelayBy d A
 delayByᵗ Δt = retimeᵗ (Δt +_)
 
 delayᵗ : A →ᵗ Delay A
 delayᵗ = delayByᵗ 1
+
+-- A guess. Useful?
+Retime₂ : (_⊕_ : Time → Time → Time) → Obj → Obj → Obj
+Retime₂ _⊕_ (obj {I} s) (obj {J} t) = obj {I × J} (λ (i , j) → s i ⊕ t j)
+
 
 module A where
 
@@ -146,28 +153,42 @@ private variable d e : Time
 ≡-↓ : d ≡ e → fᵗ ↓ d → fᵗ ↓ e
 ≡-↓ refl = id
 
--- map-is-causal : ∀ (f : A → B) → causal (map f)
--- map-is-causal f {n} {s} {t} s~t i i<n rewrite s~t i i<n = refl
+module _ {d e} where
+
+  infixr 9 _∘↓_
+  _∘↓_ : gᵗ ↓ e → fᵗ ↓ d → (gᵗ ∘ fᵗ) ↓ (e + d)
+  (g↓ ∘↓ f↓) {n} rewrite +-assoc e d n = g↓ ∘ f↓
+
+  infixr 7 _⊗↓_
+  _⊗↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ⊗ gᵗ) ↓ (d ⊓ e)
+  (f↓ ⊗↓ g↓) u~v = [ ≤-↓ (m⊓n≤m _ _) f↓ (u~v ∘ inj₁)
+                   , ≤-↓ (m⊓n≤n _ _) g↓ (u~v ∘ inj₂) ]
+
+bump-is-causal : ∀ f → causal (bump {A} f)
+bump-is-causal f {n} {s} {t} s~t i i<n rewrite s~t i i<n = refl
+
+∘↓-bump : gᵗ ↓ e → ∀ f → (gᵗ ∘ bump f) ↓ e
+∘↓-bump {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ bump-is-causal f)
+
+delayBy-↓ : delayByᵗ {A} d ↓ d
+delayBy-↓ {d = d} u~ₑv i d+t<d+e = u~ₑv i (+-cancelˡ-< d d+t<d+e)
+
+-- delayBy-↓ {d = d} {u = u} {v} u~ₑv i d+t<d+e =
+--   begin
+--     delayByᵗ d u ! i
+--   ≡⟨⟩
+--     u ! i
+--   ≡⟨ u~ₑv i (+-cancelˡ-< d d+t<d+e) ⟩
+--     v ! i
+--   ≡⟨⟩
+--     delayByᵗ d v ! i
+--   ∎
 
 delay-is-contractive : contractive (delayᵗ {A})
-delay-is-contractive u~ₑv j (s≤s sd≤e) = u~ₑv j sd≤e
+delay-is-contractive = delayBy-↓
 
 const-is-constant : ∀ {y} → constant {A} {B} (const y)
 const-is-constant _ _ _ = refl
-
--- ∘↓-map : gᵗ ↓ e → (f : A → B) → (gᵗ ∘ map f) ↓ e
--- ∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map-is-causal f)
-
--- Sequential composition adds delays.
-infixr 9 _∘↓_
-_∘↓_ : gᵗ ↓ e → fᵗ ↓ d → (gᵗ ∘ fᵗ) ↓ (e + d)
-_∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
-
--- Parallel composition with arbitrary delays
-infixr 7 _⊗↓_
-_⊗↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ⊗ gᵗ) ↓ (d ⊓ e)
-(f↓ ⊗↓ g↓) u~v = [ ≤-↓ (m⊓n≤m _ _) f↓ (u~v ∘ inj₁)
-                 , ≤-↓ (m⊓n≤n _ _) g↓ (u~v ∘ inj₂) ]
 
 -- Stream functions delayed by d
 infix 0 _→[_]_
@@ -189,8 +210,9 @@ infixr 7 _⊗̂_
 _⊗̂_ : (A →[ d ] C) → (B →[ e ] D) → (A ×̇ B →[ d ⊓ e ] C ×̇ D)
 (f , f↓) ⊗̂ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
 
--- map⁰ : (A → B) → (A →⁰ B)
--- map⁰ f = map f , map-is-causal f
+bump⁰ : (Atom → Atom) → (A →⁰ A)
+bump⁰ f = bump f , bump-is-causal f
 
 delay¹ : A →¹ Delay A
 delay¹ = delayᵗ , delay-is-contractive
+
