@@ -216,3 +216,12 @@ bump⁰ f = bump f , bump-is-causal f
 delay¹ : A →¹ Delay A
 delay¹ = delayᵗ , delay-is-contractive
 
+bump∘delay : (Atom → Atom) → A →¹ Delay A
+bump∘delay f = bump⁰ f ∘̂ delay¹
+
+-- -- Or let Agda fill in the composite delays
+-- bump∘delay′ : (Atom → Atom) → A →[ ? ] DelayBy ? A
+-- bump∘delay′ f = bump⁰ f ∘̂ delay¹
+
+-- delay∘bump∘delay : (Atom → Atom) → A →[ ? ] DelayBy ? A
+-- delay∘bump∘delay f = delay¹ ∘̂ bump⁰ f ∘̂ delay¹
