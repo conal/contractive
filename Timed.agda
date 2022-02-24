@@ -121,40 +121,19 @@ Retime₂ : (_⊕_ : Time → Time → Time) → Obj → Obj → Obj
 Retime₂ _⊕_ (obj {I} s) (obj {J} t) = obj {I × J} (λ (i , j) → s i ⊕ t j)
 
 
-module A where
+module _ {A@(obj {I} ts) : Obj} where
 
-  module _ {A@(obj {I} ts) : Obj} where
+  infix 4 _≡[_]_
+  _≡[_]_ : Values A → Time → Values A → Set
+  u ≡[ t ] v = ∀ (i : I) → ts i < t → u ! i ≡ v ! i
 
-    infix 4 _≡[_]_
-    _≡[_]_ : Values A → Time → Values A → Set
-    u ≡[ t ] v = ∀ (i : I) → ts i < t → u ! i ≡ v ! i
+≡[≤] : s ≤ t → u ≡[ t ] v → u ≡[ s ] v
+≡[≤] s≤t u~ₜv i i<s = u~ₜv i (≤-trans i<s s≤t)
 
-  ≡[≤] : s ≤ t → u ≡[ t ] v → u ≡[ s ] v
-  ≡[≤] s≤t u~ₜv i i<s = u~ₜv i (≤-trans i<s s≤t)
-
-  -- Input influence is delayed by at least d steps.
-  infix 4 _↓_
-  _↓_ : (A →ᵗ B) → Time → Set
-  f ↓ d = ∀ {e u v} → u ≡[ e ] v → f u ≡[ d + e ] f v
-
--- Generalize to a t per index
-module B where
-
-  module _ {A@(obj {I} ts) : Obj} where
-
-    infix 4 _≡[_]_
-    _≡[_]_ : Values A → (I → Time) → Values A → Set
-    u ≡[ t ] v = ∀ (i : I) → ts i < t i → u ! i ≡ v ! i
-
-  private variable Δs Δt : I → Time
-
-  ≡[≤] : (∀ i → Δs i ≤ Δt i) → u ≡[ Δt ] v → u ≡[ Δs ] v
-  ≡[≤] s≤t u~ₜv i i<s = u~ₜv i (≤-trans i<s (s≤t i))
-
-  -- I don't know how to generalize `_↓_` accordingly, considering that the
-  -- domain and codomain can have different shapes (index types).
-
-open A
+-- Input influence is delayed by at least d steps.
+infix 4 _↓_
+_↓_ : (A →ᵗ B) → Time → Set
+f ↓ d = ∀ {e u v} → u ≡[ e ] v → f u ≡[ d + e ] f v
 
 causal : (A →ᵗ B) → Set
 causal f = f ↓ 0
@@ -297,7 +276,7 @@ module IndexedCategory where
   bump⊗̂delay : (Atom → Atom) → A ×̇ B →[ zero ] A ×̇ Delay B
   bump⊗̂delay f = bumpᵈ f ⊗̂ delayᵈ
 
--- Existentially wrapped cartesian category.
+-- Existentially wrapped cartesian category
 module Category where
 
   infix 0 _→ᵈ_
