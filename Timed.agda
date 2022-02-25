@@ -1,12 +1,14 @@
 -- Timed functions and generalized contractivity
 module Timed (Atom : Set) where
 
-open import Function using (id; const) renaming (_∘_ to _∘_)
+open import Level using (0ℓ)
+open import Function using (id; const; flip) renaming (_∘_ to _∘_)
+open import Data.Empty
+open import Data.Sum
 open import Data.Product as × hiding (zip)
 open import Data.Nat
 open import Data.Nat.Properties
-
-open import Relation.Binary.PropositionalEquality hiding ([_])
+open import Relation.Binary.PropositionalEquality hiding ([_]; Extensionality)
 open ≡-Reasoning
 
 -- Time. ℕ for now.
@@ -15,6 +17,10 @@ Time = ℕ
 
 -- TODO: generalize from ℕ to any well-founded partial order. See
 -- Induction.WellFounded in agda-stdlib.
+
+-- Lets us work functions instead of coinductive structures
+open import Axiom.Extensionality.Propositional
+postulate extensionality : Extensionality 0ℓ 0ℓ
 
 record Obj : Set₁ where
   constructor obj
@@ -26,11 +32,15 @@ open Obj public
 
 -- or ∃ λ i → I → Atom
 
-open import Data.Empty
-open import Data.Sum
+allAt : Time → Set → Obj
+allAt d I = obj {I} (const d)
+
+obj₀ : Set → Obj
+obj₀ = allAt 0
+-- obj₀ I = obj {I} (const 0)
 
 ⊤̇ : Obj
-⊤̇ = obj {⊥} λ ()
+⊤̇ = obj ⊥-elim
 
 infixr 4 _×̇_
 _×̇_ : Obj → Obj → Obj
@@ -55,23 +65,23 @@ A →ᵗ B = Values A → Values B
 private variable
   I J : Set
   A B C D : Obj
-  s t : Time
+  s t d e : Time
   u v : Values A
   fᵗ gᵗ hᵗ : A →ᵗ B
 
--- Transform all atoms uniformly
-bump : (Atom → Atom) → A →ᵗ A
-bump f (vals at) = vals (f ∘ at)
+-- Untimed ("pure") structure function
+infix 0 _→ᵖ_
+_→ᵖ_ : Set → Set → Set
+I →ᵖ J = (I → Atom) → (J → Atom)
 
--- We'll probably have more sophisticated forms of mapping, in which we
--- transform clusters of bits, e.g., number representations. Think of as indexed
--- by a pair.
+uniform : (I →ᵖ J) → allAt t I →ᵗ allAt t J
+uniform h (vals at) = vals (h at)
 
 zip : Values A × Values B → Values (A ×̇ B)
 zip (vals f , vals g) = vals [ f , g ]
 
-unzip : Values (A ×̇ B) → Values A × Values B
-unzip (vals h) = vals (h ∘ inj₁) , vals (h ∘ inj₂)
+-- unzip : Values (A ×̇ B) → Values A × Values B
+-- unzip (vals h) = vals (h ∘ inj₁) , vals (h ∘ inj₂)
 
 reindex : ∀ {A B} → (Index B → Index A) → A →ᵗ B
 reindex f (vals h) = vals (h ∘ f)
@@ -137,8 +147,6 @@ contractive f = f ↓ 1
 constant : (A →ᵗ B) → Set
 constant f = ∀ {d} → f ↓ d   -- infinite delay
 
-private variable d e : Time
-
 ≤-↓ : e ≤ d → fᵗ ↓ d → fᵗ ↓ e
 ≤-↓ e≤d ↓d s~t = ≡[≤] (+-monoˡ-≤ _ e≤d) (↓d s~t)
 
@@ -188,16 +196,26 @@ infixr 7 _⊗↓_
 _⊗↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ⊗ gᵗ) ↓ (d ⊓ e)
 f↓ ⊗↓ g↓ = +0-↓ (f↓ ∘↓ exl↓) ▵↓ +0-↓ (g↓ ∘↓ exr↓)
 
-bump-is-causal : ∀ f → causal (bump {A} f)
-bump-is-causal f {s} {t} s~t i i<n rewrite s~t i i<n = refl
+open import Relation.Binary.Core using (_=[_]⇒_)
 
-∘↓-bump : gᵗ ↓ e → ∀ f → (gᵗ ∘ bump f) ↓ e
-∘↓-bump {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ bump-is-causal f)
+uniform↓ : (h : I →ᵖ J) → causal (uniform {t = t} h)
+uniform↓ h u~v j t<e = cong (λ ● → h ● j) (extensionality (flip u~v t<e))
 
-delay-↓ : delayᵗ {A} ↓ d
-delay-↓ {d = d} u~ₑv i d+t<d+e = u~ₑv i (+-cancelˡ-< d d+t<d+e)
+-- uniform↓ {t = t} h {e} {vals f} {vals g} u~v j t<e =
+--   begin
+--     uniform {t = t} h (vals f) ! j
+--   ≡⟨⟩
+--     h f j
+--   ≡⟨ cong (λ ● → h ● j) (ext (flip u~v t<e)) ⟩
+--     h g j
+--   ≡⟨⟩
+--     uniform {t = t} h (vals g) ! j
+--   ∎
 
--- delay-↓ {d = d} {u = u} {v} u~ₑv i d+t<d+e =
+delay↓ : delayᵗ {A} ↓ d
+delay↓ u~ₑv i d+t<d+e = u~ₑv i (+-cancelˡ-< _ d+t<d+e)
+
+-- delay↓ {d = d} {u = u} {v} u~ₑv i d+t<d+e =
 --   begin
 --     delayᵗ d u ! i
 --   ≡⟨⟩
@@ -208,8 +226,8 @@ delay-↓ {d = d} u~ₑv i d+t<d+e = u~ₑv i (+-cancelˡ-< d d+t<d+e)
 --     delayᵗ d v ! i
 --   ∎
 
-const-is-constant : ∀ {y} → constant {A} {B} (const y)
-const-is-constant _ _ _ = refl
+const↓ : ∀ {y} → constant {A} {B} (const y)
+const↓ _ _ _ = refl
 
 -- Delayed functions
 infix 0 _→ᵈ_
@@ -235,14 +253,26 @@ infixr 7 _⊗̂_
 _⊗̂_ : (A →ᵈ C) → (B →ᵈ D) → (A ×̇ B →ᵈ C ×̇ D)
 Δ f↓ ⊗̂ Δ g↓ = Δ (f↓ ⊗↓ g↓)
 
-bumpᵈ : (Atom → Atom) → (A →ᵈ A)
-bumpᵈ f = Δ (bump-is-causal f)
+uniformᵈ : (h : I →ᵖ J) → allAt t I →ᵈ allAt t J
+uniformᵈ h = Δ (uniform↓ h)
 
 delayᵈ : A →ᵈ Delay d A
-delayᵈ = Δ delay-↓
+delayᵈ = Δ delay↓
 
-bump∘̂delay : (Atom → Atom) → A →ᵈ Delay d A
-bump∘̂delay f = bumpᵈ f ∘̂ delayᵈ
 
-bump⊗̂delay : (Atom → Atom) → A ×̇ B →ᵈ A ×̇ Delay d B
-bump⊗̂delay f = bumpᵈ f ⊗̂ delayᵈ
+-- Examples
+
+-- The fixed point of the following two is a toggle flip-flop.
+
+uniform∘̂delay : (I →ᵖ J) → allAt t I →ᵈ allAt (d + t) J
+uniform∘̂delay h = uniformᵈ h ∘̂ delayᵈ
+
+delay∘̂uniform : (I →ᵖ J) → allAt t I →ᵈ allAt (d + t) J
+delay∘̂uniform h = delayᵈ ∘̂ uniformᵈ h
+
+uniform⊗̂delay : (I →ᵖ J) → allAt t I ×̇ A →ᵈ allAt t J ×̇ Delay d A
+uniform⊗̂delay h = uniformᵈ h ⊗̂ delayᵈ
+
+
+-- TODO: fixed point theorems. Guess: whenever f ↓ suc d, f has a unique fixed
+-- point g, and fix g ↓ d.
