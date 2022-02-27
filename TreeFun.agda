@@ -18,7 +18,6 @@ private variable
   A B C D : Set
   m n d e : ℕ
   s t : Tree A
-  f g : A → B
 
 -- Tree functions
 infix 0 _→ᵗ_
@@ -79,15 +78,15 @@ constant f = ∀ {d} → f ↓ d
 
 -- ≡-↓ d≡e = ≤-↓ (≤-reflexive (sym d≡e))
 
-map-is-causal : ∀ (f : A → B) → causal (map f)
-map-is-causal f {n} {s} {t} s∼t i i<n rewrite s∼t i i<n = refl
+map↓ : ∀ (f : A → B) → causal (map f)
+map↓ f {n} {s} {t} s∼t i i<n rewrite s∼t i i<n = refl
 
-delay-is-contractive : ∀ {a : A} → contractive (delayᵗ a)
-delay-is-contractive s∼t   []         _     = refl
-delay-is-contractive s∼t (i ∷ is) (s≤s i<n) = s∼t is i<n
+delay↓ : ∀ {a : A} → contractive (delayᵗ a)
+delay↓ s∼t   []         _     = refl
+delay↓ s∼t (i ∷ is) (s≤s i<n) = s∼t is i<n
 
-const-is-constant : constant {A = A} (const s)
-const-is-constant _ _ _ = refl
+const↓ : constant {A = A} (const s)
+const↓ _ _ _ = refl
 
 -- Sequential composition adds delays.
 infixr 9 _∘↓_
@@ -95,7 +94,7 @@ _∘↓_ : gᵗ ↓ e → fᵗ ↓ d → (gᵗ ∘ fᵗ) ↓ (e + d)
 _∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
 
 ∘↓-map : gᵗ ↓ e → (f : A → B) → (gᵗ ∘ map f) ↓ e
-∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map-is-causal f)
+∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map↓ f)
 
 -- Parallel composition with equal delays
 infixr 7 _⊗↓≡_
@@ -116,10 +115,13 @@ infixr 7 _⊗↓_
 _⊗↓_ : fᵗ ↓ d → gᵗ ↓ e → (fᵗ ⊗ gᵗ) ↓ (d ⊓ e)
 f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _) g↓
 
--- Stream functions delayed by d
+-- Tree functions lagging by (at least) d
 infix 0 _→[_]_
-_→[_]_ : Set → ℕ → Set → Set
-A →[ d ] B = Σ (A →ᵗ B) (_↓ d)
+record _→[_]_ (A : Set) (d : ℕ) (B : Set) : Set where
+  constructor mk
+  field
+    {f} : A →ᵗ B
+    f↓  : f ↓ d
 
 infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
@@ -129,15 +131,15 @@ A →¹ B = A →[ 1 ] B  -- contractive
 -- Sequential composition
 infixr 9 _∘̂_
 _∘̂_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
-(g , g↓) ∘̂ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
+mk g↓ ∘̂ mk f↓ = mk (g↓ ∘↓ f↓)
 
 -- Parallel composition
 infixr 7 _⊗̂_
 _⊗̂_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
-(f , f↓) ⊗̂ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
+mk f↓ ⊗̂ mk g↓ = mk (f↓ ⊗↓ g↓)
 
 map⁰ : (A → B) → (A →⁰ B)
-map⁰ f = map f , map-is-causal f
+map⁰ f = mk (map↓ f)
 
 delay¹ : A → (A →¹ A)
-delay¹ a = delayᵗ a , delay-is-contractive
+delay¹ a = mk (delay↓ {a = a})
