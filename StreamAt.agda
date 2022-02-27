@@ -193,7 +193,7 @@ _→⁰_ _→¹_ : Set → Set → Set
 A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
-map⁰ : (A → B) → (A →¹ B)
+map⁰ : (A → B) → (A →⁰ B)
 map⁰ f = mk (map↓ f)
 
 delay¹ : A → A →¹ A
