@@ -1,4 +1,5 @@
 -- This version formulates "streams" directly as functions.
+{-# OPTIONS --guardedness #-}  -- for Gen₀
 
 module StreamFun where
 
@@ -16,7 +17,18 @@ private variable
   A B C D : Set
   m n d e : ℕ
   s t : Stream A
-  f g : A → B
+
+infixr 5 _∷_
+_∷_ : A → Stream A → Stream A
+(x ∷ xs)  zero   = x
+(x ∷ xs) (suc i) = xs i
+
+head : Stream A → A
+head xs = xs zero
+
+tail : Stream A → Stream A
+tail xs = xs ∘ suc
+
 
 -- Stream functions
 infix 0 _→ˢ_
@@ -75,15 +87,15 @@ constant f = ∀ {d} → f ↓ d
 ≤-↓ e≤d ↓d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (↓d s∼t)
 
 
-map-is-causal : ∀ (f : A → B) → causal (map f)
-map-is-causal f {n} {s} {t} s∼t i i<n rewrite s∼t i i<n = refl
+map↓ : ∀ (f : A → B) → causal (map f)
+map↓ f {n} {s} {t} s∼t i i<n rewrite s∼t i i<n = refl
 
-delay-is-contractive : ∀ {a : A} → contractive (delayˢ a)
-delay-is-contractive s∼t  zero       _     = refl
-delay-is-contractive s∼t (suc i) (s≤s i<n) = s∼t i i<n
+delay↓ : ∀ {a : A} → contractive (delayˢ a)
+delay↓ s∼t  zero       _     = refl
+delay↓ s∼t (suc i) (s≤s i<n) = s∼t i i<n
 
-const-is-constant : constant {A = A} (const s)
-const-is-constant _ _ _ = refl
+const↓ : constant {A = A} (const s)
+const↓ _ _ _ = refl
 
 -- Sequential composition adds delays.
 infixr 9 _∘↓_
@@ -91,7 +103,7 @@ _∘↓_ : gˢ ↓ e → fˢ ↓ d → (gˢ ∘ fˢ) ↓ (e + d)
 _∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
 
 ∘↓-map : gˢ ↓ e → (f : A → B) → (gˢ ∘ map f) ↓ e
-∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map-is-causal f)
+∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map↓ f)
 
 -- Parallel composition with equal delays
 infixr 7 _⊗↓≡_
@@ -114,20 +126,23 @@ f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _
 
 -- TODO: Try defining ⊗↓ directly rather than via ⊗↓-≡ .
 
--- Stream functions delayed by d
+-- Stream functions lagging by (at least) d
 infix 0 _→[_]_
-_→[_]_ : Set → ℕ → Set → Set
-A →[ d ] B = Σ (A →ˢ B) (_↓ d)
+record _→[_]_ (A : Set) (d : ℕ) (B : Set) : Set where
+  constructor mk
+  field
+    {f} : A →ˢ B
+    f↓  : f ↓ d
 
 -- Sequential composition
 infixr 9 _∘ᵈ_
 _∘ᵈ_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
-(g , g↓) ∘ᵈ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
+mk g↓ ∘ᵈ mk f↓ = mk (g↓ ∘↓ f↓)
 
 -- Parallel composition
 infixr 7 _⊗ᵈ_
 _⊗ᵈ_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
-(f , f↓) ⊗ᵈ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
+mk f↓ ⊗ᵈ mk g↓ = mk (f↓ ⊗↓ g↓)
 
 infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
@@ -135,10 +150,10 @@ A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
 map⁰ : (A → B) → (A →[ 0 ] B)
-map⁰ f = map f , map-is-causal f
+map⁰ f = mk (map↓ f)
 
 delay¹ : A → A →¹ A
-delay¹ a = delayˢ a , delay-is-contractive
+delay¹ a = mk (delay↓ {a = a})
 
 open import Data.Bool
 

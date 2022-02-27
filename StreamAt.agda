@@ -27,7 +27,6 @@ private variable
   A B C D : Set
   m n d e : ℕ
   s t : Stream A
-  f g : A → B
 
 infix 8 _!_
 _!_ : Stream A → ℕ → A
@@ -171,20 +170,23 @@ infixr 7 _⊗↓_
 _⊗↓_ : fˢ ↓ d → gˢ ↓ e → (fˢ ⊗ gˢ) ↓ (d ⊓ e)
 f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _) g↓
 
--- Stream functions delayed by d
+-- Stream functions lagging by (at least) d
 infix 0 _→[_]_
-_→[_]_ : Set → ℕ → Set → Set
-A →[ d ] B = Σ (A →ˢ B) (_↓ d)
+record _→[_]_ (A : Set) (d : ℕ) (B : Set) : Set where
+  constructor mk
+  field
+    {f} : A →ˢ B
+    f↓  : f ↓ d
 
 -- Sequential composition
 infixr 9 _∘ᵈ_
 _∘ᵈ_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
-(g , g↓) ∘ᵈ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
+mk g↓ ∘ᵈ mk f↓ = mk (g↓ ∘↓ f↓)
 
 -- Parallel composition
 infixr 7 _⊗ᵈ_
 _⊗ᵈ_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
-(f , f↓) ⊗ᵈ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
+mk f↓ ⊗ᵈ mk g↓ = mk (f↓ ⊗↓ g↓)
 
 infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
@@ -192,10 +194,10 @@ A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
 map⁰ : (A → B) → (A →[ 0 ] B)
-map⁰ f = map f , map↓ f
+map⁰ f = mk (map↓ f)
 
 delay¹ : A → A →¹ A
-delay¹ a = delayˢ a , delay↓
+delay¹ a = mk (delay↓ {a = a})
 
 open import Data.Bool hiding (_≤_; _<_)
 
@@ -250,7 +252,7 @@ gen₀↓ {g = g} {t = t} s~t (suc i) (s≤s i<n)
 
 -- gen yields causal functions
 gen₀ᵈ : Gen₀ A B → A →⁰ B
-gen₀ᵈ g = gen₀ˢ g , gen₀↓
+gen₀ᵈ g = mk (gen₀↓ {g = g})
 
 -- Generating trees
 Gen : ℕ → Set → Set → Set
@@ -261,7 +263,7 @@ infixr 5 _◂_
 _◂_ : B → (A →ˢ B) → (A →ˢ B)
 (b ◂ f) s = b ◃ f s
 
-◂-↓ : {b : B} → f ↓ d → (b ◂ f) ↓ suc d
+◂-↓ : {b : B} → fˢ ↓ d → (b ◂ fˢ) ↓ suc d
 ◂-↓ f↓ s~t zero 0<1+d+n = refl
 ◂-↓ f↓ s~t (suc i) (s≤s i<d+n) = f↓ s~t i i<d+n
 
@@ -294,4 +296,4 @@ gen↓ {n = zero } = gen₀↓
 gen↓ {n = suc n} = ◂-↓ gen↓
 
 genᵈ : ∀ (g : Gen n A B) → A →[ n ] B
-genᵈ g = genˢ g , gen↓
+genᵈ g = mk (gen↓ {g = g})

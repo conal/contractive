@@ -115,7 +115,7 @@ constant f = ∀ {d} → f ↓ d
 ≤-↓ e≤d delayed-d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (delayed-d s∼t)
 
 -- Constant functions never sense their inputs.
-const↓ : {bs : Stream B} → constant (const {B = Stream A} bs)
+const↓ : {bs : Stream B} → constant {A = A} (const bs)
 const↓ s∼t = refl
 
 map↓ : ∀ (f : A → B) → causal (map f)
@@ -134,9 +134,9 @@ map↓ f {suc n} {s = s} {t} s∼t =
 delayˢ : A → A →ˢ A
 delayˢ = _◃_
 
-delay↓ : ∀ (a : A) → contractive (delayˢ a)
-delay↓ _ {n = zero } _ = refl
-delay↓ _ {n = suc n} s∼t rewrite s∼t = refl
+delay↓ : ∀ {a : A} → contractive (delayˢ a)
+delay↓ {n = zero } _ = refl
+delay↓ {n = suc n} s∼t rewrite s∼t = refl
 
 -- delay↓ a {n = suc n} {s} {t} s∼t =
 --   begin
@@ -183,18 +183,21 @@ f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _
 
 -- Stream functions lagging by (at least) d
 infix 0 _→[_]_
-_→[_]_ : Set → ℕ → Set → Set
-A →[ d ] B = Σ (A →ˢ B) (_↓ d)
+record _→[_]_ (A : Set) (d : ℕ) (B : Set) : Set where
+  constructor mk
+  field
+    {f} : A →ˢ B
+    f↓  : f ↓ d
 
 -- Sequential composition
 infixr 9 _∘ᵈ_
 _∘ᵈ_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
-(g , g↓) ∘ᵈ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
+mk g↓ ∘ᵈ mk f↓ = mk (g↓ ∘↓ f↓)
 
 -- Parallel composition
 infixr 7 _⊗ᵈ_
 _⊗ᵈ_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
-(f , f↓) ⊗ᵈ (g , g↓) = f ⊗ g , f↓ ⊗↓ g↓
+mk f↓ ⊗ᵈ mk g↓ = mk (f↓ ⊗↓ g↓)
 
 infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
@@ -202,10 +205,10 @@ A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
 map⁰ : (A → B) → (A →[ 0 ] B)
-map⁰ f = map f , map↓ f
+map⁰ f = mk (map↓ f)
 
 delay¹ : A → A →¹ A
-delay¹ a = delayˢ a , delay↓ a
+delay¹ a = mk {f = delayˢ a} delay↓
 
 open import Data.Bool
 
