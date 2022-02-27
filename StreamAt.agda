@@ -76,34 +76,35 @@ s ≡[ n ] t = ∀ i → i < n → s ! i ≡ t ! i
 ≡[+] s∼t = ≡[≤] (m≤m+n _ _) s∼t
 
 -- Input influence is delayed by at least d steps.
-delayed : ℕ → (A →ˢ B) → Set
-delayed d f = ∀ {n s t} → s ≡[ n ] t → f s ≡[ d + n ] f t
+infix 4 _↓_
+_↓_ : (A →ˢ B) → ℕ → Set
+f ↓ d = ∀ {n s t} → s ≡[ n ] t → f s ≡[ d + n ] f t
 
 causal : (A →ˢ B) → Set
-causal = delayed 0
+causal = _↓ 0
 
 contractive : (A →ˢ B) → Set
-contractive = delayed 1
+contractive = _↓ 1
 
 constant : (A →ˢ B) → Set
-constant f = ∀ {d} → delayed d f
+constant f = ∀ {d} → f ↓ d
 
-delayed-≡ : d ≡ e → delayed d fˢ → delayed e fˢ
-delayed-≡ refl = id
+≡-↓ : d ≡ e → fˢ ↓ d → fˢ ↓ e
+≡-↓ refl = id
 
-delayed-≤ : e ≤ d → delayed d fˢ → delayed e fˢ
-delayed-≤ e≤d delayed-d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (delayed-d s∼t)
+≤-↓ : e ≤ d → fˢ ↓ d → fˢ ↓ e
+≤-↓ e≤d delayed-d {n} s∼t = ≡[≤] (+-monoˡ-≤ n e≤d) (delayed-d s∼t)
 
 
 -- Constant functions never sense their inputs.
-const-is-constant : constant {A = A} (const s)
-const-is-constant _ _ _ = refl
+const↓ : constant {A = A} (const s)
+const↓ _ _ _ = refl
 
-map-is-causal : ∀ (f : A → B) → causal (map f)
-map-is-causal f {n} {s} {t} s∼t i i<n
+map↓ : ∀ (f : A → B) → causal (map f)
+map↓ f {n} {s} {t} s∼t i i<n
   rewrite map-! f s i | map-! f t i | s∼t i i<n = refl
 
--- map-is-causal f {n} {s} {t} s∼t i i<n =
+-- map↓ f {n} {s} {t} s∼t i i<n =
 --   begin
 --     map f s ! i
 --   ≡⟨ map-! f s i ⟩
@@ -117,11 +118,11 @@ map-is-causal f {n} {s} {t} s∼t i i<n
 delayˢ : A → A →ˢ A
 delayˢ = _◃_
 
-delay-is-contractive : ∀ {a : A} → contractive (delayˢ a)
-delay-is-contractive s∼t  zero       _     = refl
-delay-is-contractive s∼t (suc i) (s≤s i<n) = s∼t i i<n
+delay↓ : ∀ {a : A} → contractive (delayˢ a)
+delay↓ s∼t  zero       _     = refl
+delay↓ s∼t (suc i) (s≤s i<n) = s∼t i i<n
 
--- delay-is-contractive {a = a} {suc n} {s} {t} s∼t (suc i) (s≤s i<n) =
+-- delay↓ {a = a} {suc n} {s} {t} s∼t (suc i) (s≤s i<n) =
 --   begin
 --     delayˢ a s ! suc i
 --   ≡⟨⟩
@@ -133,26 +134,25 @@ delay-is-contractive s∼t (suc i) (s≤s i<n) = s∼t i i<n
 --   ∎
 
 -- Sequential composition adds delays.
-delayed-∘ :
-  delayed e gˢ → delayed d fˢ → delayed (e + d) (gˢ ∘ fˢ)
-delayed-∘ {e = e} {d = d} delayed-g delayed-f {n} rewrite +-assoc e d n =
-  delayed-g ∘ delayed-f
+infixr 9 _∘↓_
+_∘↓_ : gˢ ↓ e → fˢ ↓ d → gˢ ∘ fˢ ↓ e + d
+_∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
 
-delayed-∘-map : delayed e gˢ → delayed e (gˢ ∘ map f)
-delayed-∘-map {e = e} {f = f} delayed-g =
-  delayed-≡ (+-identityʳ e) (delayed-∘ delayed-g (map-is-causal f))
+∘↓-map : gˢ ↓ e → (f : A → B) → (gˢ ∘ map f) ↓ e
+∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map↓ f)
 
 -- Parallel composition with equal delays.
-delayed-⊗-≡ : delayed d fˢ → delayed d gˢ → delayed d (fˢ ⊗ gˢ)
-delayed-⊗-≡ {fˢ = fˢ} {gˢ = gˢ} delayed-f delayed-g {n} {s = s} {t} s∼t i i<n =
+infixr 7 _⊗↓≡_
+_⊗↓≡_ : fˢ ↓ d → gˢ ↓ d → fˢ ⊗ gˢ ↓ d
+_⊗↓≡_ {fˢ = fˢ} {gˢ = gˢ} f↓ g↓ {n} {s = s} {t} s∼t i i<n =
   begin
     (fˢ ⊗ gˢ) s ! i
   ≡⟨⟩
     zip (fˢ (map proj₁ s) , gˢ (map proj₂ s)) ! i
   ≡⟨ zip-! _ i ⟩
     fˢ (map proj₁ s) ! i , gˢ (map proj₂ s) ! i
-  ≡⟨ cong₂ _,_ (delayed-∘-map delayed-f s∼t i i<n)
-               (delayed-∘-map delayed-g s∼t i i<n) ⟩
+  ≡⟨ cong₂ _,_ (∘↓-map f↓ proj₁ s∼t i i<n)
+               (∘↓-map g↓ proj₂ s∼t i i<n) ⟩
     fˢ (map proj₁ t) ! i , gˢ (map proj₂ t) ! i
   ≡˘⟨ zip-! _ i ⟩
     zip (fˢ (map proj₁ t) , gˢ (map proj₂ t)) ! i
@@ -161,26 +161,25 @@ delayed-⊗-≡ {fˢ = fˢ} {gˢ = gˢ} delayed-f delayed-g {n} {s = s} {t} s∼
   ∎
 
 -- Parallel composition with arbitrary delays
-delayed-⊗ : delayed d fˢ → delayed e gˢ → delayed (d ⊓ e) (fˢ ⊗ gˢ)
-delayed-⊗ del-f del-g =
-  delayed-⊗-≡ (delayed-≤ (m⊓n≤m _ _) del-f) (delayed-≤ (m⊓n≤n _ _) del-g)
+delayed-⊗ : fˢ ↓ d → gˢ ↓ e → fˢ ⊗ gˢ ↓ d ⊓ e
+delayed-⊗ f↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _) g↓
 
--- TODO: Try defining delayed-⊗ directly rather than via delayed-⊗-≡ .
+-- TODO: Try defining delayed-⊗ directly rather than via ⊗↓≡ .
 
 -- Stream functions delayed by d
 infix 0 _→[_]_
 _→[_]_ : Set → ℕ → Set → Set
-A →[ d ] B = Σ (A →ˢ B) (delayed d)
+A →[ d ] B = Σ (A →ˢ B) (_↓ d)
 
 -- Sequential composition
 infixr 9 _∘ᵈ_
 _∘ᵈ_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
-(g , delayed-g) ∘ᵈ (f , delayed-f) = g ∘ f , delayed-∘ delayed-g delayed-f
+(g , g↓) ∘ᵈ (f , f↓) = g ∘ f , g↓ ∘↓ f↓
 
 -- Parallel composition
 infixr 7 _⊗ᵈ_
 _⊗ᵈ_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
-(f , delayed-f) ⊗ᵈ (g , delayed-g) = f ⊗ g , delayed-⊗ delayed-f delayed-g
+(f , f↓) ⊗ᵈ (g , g↓) = f ⊗ g , delayed-⊗ f↓ g↓
 
 infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
@@ -188,10 +187,10 @@ A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
 map⁰ : (A → B) → (A →[ 0 ] B)
-map⁰ f = map f , map-is-causal f
+map⁰ f = map f , map↓ f
 
 delay¹ : A → A →¹ A
-delay¹ a = delayˢ a , delay-is-contractive
+delay¹ a = delayˢ a , delay↓
 
 open import Data.Bool
 
