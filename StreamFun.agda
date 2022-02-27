@@ -149,14 +149,14 @@ _→⁰_ _→¹_ : Set → Set → Set
 A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
 
-map⁰ : (A → B) → (A →⁰ B)
-map⁰ f = mk (map↓ f)
+mapᵈ : (A → B) → (A →⁰ B)
+mapᵈ f = mk (map↓ f)
 
-delay¹ : A → A →¹ A
-delay¹ a = mk (delay↓ {a = a})
+delayᵈ : A → A →¹ A
+delayᵈ a = mk (delay↓ {a = a})
 
 open import Data.Bool
 
 -- A stream function whose fixed point is a toggle flip-flop without enable.
 toggle′ : Bool →¹ Bool
-toggle′ = map⁰ not ∘ᵈ delay¹ false
+toggle′ = mapᵈ not ∘ᵈ delayᵈ false
