@@ -45,6 +45,15 @@ A →ˢ B = Stream A → Stream B
 
 private variable fˢ gˢ hˢ : A →ˢ B
 
+infixr 5 _◂_
+_◂_ : B → (A →ˢ B) → (A →ˢ B)
+(b ◂ f) s = b ◃ f s
+
+infixr 5 _◂*_
+_◂*_ : Vec B n → (A →ˢ B) → (A →ˢ B)
+[] ◂* f = f
+(b ∷ bs) ◂* f = b ◂ bs ◂* f
+
 map : (A → B) → (A →ˢ B)
 head (map f s) =     f (head s)
 tail (map f s) = map f (tail s)
@@ -214,16 +223,12 @@ open import Data.Bool hiding (_≤_; _<_)
 toggleᵈ′ : Bool →¹ Bool
 toggleᵈ′ = mapᵈ not ∘ᵈ delayᵈ false
 
+infixr 5 _◂↓_
+_◂↓_ : (b : B) → fˢ ↓ d → (b ◂ fˢ) ↓ suc d
+(b ◂↓ f↓) s~t zero 0<1+d+n = refl
+(b ◂↓ f↓) s~t (suc i) (s≤s i<d+n) = f↓ s~t i i<d+n
 
-infixr 5 _◂_
-_◂_ : B → (A →ˢ B) → (A →ˢ B)
-(b ◂ f) s = b ◃ f s
-
-◂-↓ : {b : B} → fˢ ↓ d → (b ◂ fˢ) ↓ suc d
-◂-↓ f↓ s~t zero 0<1+d+n = refl
-◂-↓ f↓ s~t (suc i) (s≤s i<d+n) = f↓ s~t i i<d+n
-
--- _◂↓_ {f = f} b f↓ {s = s} {t} s~t (suc i) (s≤s i<d+n) =
+-- _◂-↓_ {f = f} b f↓ {s = s} {t} s~t (suc i) (s≤s i<d+n) =
 --   begin
 --     (b ◂ f) s ! suc i
 --   ≡⟨⟩
@@ -234,7 +239,7 @@ _◂_ : B → (A →ˢ B) → (A →ˢ B)
 --     (b ◂ f) t ! suc i
 --   ∎
 
--- _◂↓_ {f = f} b f↓ {s = s} {t} s~t i i<1+d+n =
+-- _◂-↓_ {f = f} b f↓ {s = s} {t} s~t i i<1+d+n =
 --   begin
 --     (b ◂ f) s ! i
 --   ≡⟨ {!!} ⟩
@@ -243,6 +248,10 @@ _◂_ : B → (A →ˢ B) → (A →ˢ B)
 --     (b ◂ f) t ! i
 --   ∎
 
+infixr 5 _◂*↓_
+_◂*↓_ : (bs : Vec B e) → fˢ ↓ d → (bs ◂* fˢ) ↓ (e + d)
+[] ◂*↓ f↓ = f↓
+(b ∷ bs) ◂*↓ f↓ = b ◂↓ bs ◂*↓ f↓
 
 
 -- Coalgebraic representation of causal stream functions
@@ -299,7 +308,7 @@ coalg {suc d} (b , gₙ) c = b ◂ coalg gₙ c
 
 coalg↓ : ∀ {h : Coalg d A B C} {c} → coalg h c ↓ d
 coalg↓ {d = zero } = coalg₀↓
-coalg↓ {d = suc d} = ◂-↓ coalg↓
+coalg↓ {d = suc d} = _ ◂↓ coalg↓
 
 coalgᵈ : ∀ (h : Coalg d A B C) (c : C) → A →[ d ] B
 coalgᵈ h c = mk (coalg↓ {h = h} {c}) -- TODO: coalg↓ explicit args?
