@@ -34,6 +34,10 @@ _!_ : Stream A → ℕ → A
 s ! zero  = head s
 s ! suc i = tail s ! i
 
+take : (n : ℕ) → Stream A → Vec A n
+take  zero   s = []
+take (suc n) s = head s ∷ take n (tail s)
+
 -- Stream functions
 infix 0 _→ˢ_
 _→ˢ_ : Set → Set → Set
@@ -179,6 +183,7 @@ record _→[_]_ (A : Set) (d : ℕ) (B : Set) : Set where
     {f} : A →ˢ B
     f↓  : f ↓ d
 
+
 -- Sequential composition
 infixr 9 _∘ᵈ_
 _∘ᵈ_ : (B →[ e ] C) → (A →[ d ] B) → (A →[ e + d ] C)
@@ -193,6 +198,9 @@ infix 0 _→⁰_ _→¹_
 _→⁰_ _→¹_ : Set → Set → Set
 A →⁰ B = A →[ 0 ] B  -- causal
 A →¹ B = A →[ 1 ] B  -- contractive
+
+constᵈ : (s : Stream B) → A →⁰ B
+constᵈ s = mk (const↓ {s = s})
 
 mapᵈ : (A → B) → (A →⁰ B)
 mapᵈ f = mk (map↓ f)
@@ -250,15 +258,7 @@ coalg₀ : Coalg₀ A B C → C → A →ˢ B
 head (coalg₀ co c s) = proj₂ (cont co (c , head s))
 tail (coalg₀ co c s) = coalg₀ co (proj₁ (cont co (c , head s))) (tail s)
 
-Coalg : ℕ → Set → Set → Set → Set₁
-Coalg zero = Coalg₀
-Coalg (suc n) A B C = B × Coalg n A B C
-
--- Hm. If I map Coalg n to Gen n (as in the paper), I won't have to prove
--- anything else. On the other hand, if I prove the coalgebra version first, the
--- Gen may follow simply by specialization.
-
-coalg₀↓ : ∀ {h : Coalg₀ A B C} {c : C} → coalg₀ h c ↓ 0
+coalg₀↓ : ∀ {h : Coalg₀ A B C} {c : C} → causal (coalg₀ h c)
 coalg₀↓ s~t zero (s≤s _) rewrite ≡[]-head s~t = refl
 coalg₀↓ {h = h} {c} {s = s} {t = t} s~t (suc i) (s≤s i<n)
  rewrite ≡[]-head s~t | coalg₀↓ {h = h} {c = proj₁ (cont h (c , head t))}
@@ -288,30 +288,68 @@ coalg₀↓ {h = h} {c} {s = s} {t = t} s~t (suc i) (s≤s i<n)
 --     coalg₀ h c t ! suc i
 --   ∎
 
-coalg : Coalg n A B C → C → A →ˢ B
+-- Coalgebraic representation of `d`-lagging stream functions
+Coalg : ℕ → Set → Set → Set → Set₁
+Coalg zero = Coalg₀
+Coalg (suc d) A B C = B × Coalg d A B C
+
+coalg : Coalg d A B C → C → A →ˢ B
 coalg {zero } = coalg₀
-coalg {suc n} (b , gₙ) c = b ◂ coalg gₙ c
+coalg {suc d} (b , gₙ) c = b ◂ coalg gₙ c
 
-coalg↓ : ∀ {h : Coalg n A B C} {c} → coalg h c ↓ n
-coalg↓ {n = zero } = coalg₀↓
-coalg↓ {n = suc n} = ◂-↓ coalg↓
+coalg↓ : ∀ {h : Coalg d A B C} {c} → coalg h c ↓ d
+coalg↓ {d = zero } = coalg₀↓
+coalg↓ {d = suc d} = ◂-↓ coalg↓
 
-coalgᵈ : ∀ (h : Coalg n A B C) (c : C) → A →[ n ] B
+coalgᵈ : ∀ (h : Coalg d A B C) (c : C) → A →[ d ] B
 coalgᵈ h c = mk (coalg↓ {h = h} {c}) -- TODO: coalg↓ explicit args?
 
 -- Package seed type and value with coalgebra
 infix 0 _⇒[_]_
-record _⇒[_]_ (A : Set) (n : ℕ) (B : Set) : Set₁ where
+record _⇒[_]_ (A : Set) (d : ℕ) (B : Set) : Set₁ where
   constructor mk
   field
     {S} : Set
-    h : Coalg n A B S
     c : S
+    h : Coalg d A B S
 
-autᵈ : A ⇒[ n ] B  →  A →[ n ] B
-autᵈ (mk h s) = coalgᵈ h s
+autᵈ : A ⇒[ d ] B  →  A →[ d ] B
+autᵈ (mk h c) = coalgᵈ c h
+
+-- run : {n : ℕ} → Vec A n × (A ⇒[ d ] B) → Vec B n × (A ⇒[ d ] B)
+-- run ([] , f) = [] , f
+-- run (x ∷ xs , f) = {!!}
 
 
--- TODO: _→[_]_ operations on _⇒[_]_
+{-
+TODO:
 
--- TODO: _→ᵈ_ and _⇒ᵈ_, existentially hiding lags.
+* _→[_]_ operations on _⇒[_]_
+* _→ᵈ_ and _⇒ᵈ_, existentially hiding lags.
+* Prove an inverse to `◂-↓`: If `g ↓ suc d`, then `g` can be written as
+  `b ◂ f` where `f ↓ d`.
+-}
+
+-- -- Sequential composition
+-- infixr 9 _∘ᵃ_
+-- _∘ᵃ_ : (B ⇒[ e ] C) → (A ⇒[ d ] B) → (A ⇒[ e + d ] C)
+-- mk y g ∘ᵃ mk x f = mk (x , y) {!!}
+
+-- -- Parallel composition
+-- infixr 7 _⊗ᵃ_
+-- _⊗ᵃ_ : (A ⇒[ d ] C) → (B ⇒[ e ] D) → (A × B ⇒[ d ⊓ e ] C × D)
+-- mk f↓ ⊗ᵃ mk g↓ = mk (f↓ ⊗↓ g↓)
+
+-- infix 0 _→⁰_ _→¹_
+-- _→⁰_ _→¹_ : Set → Set → Set
+-- A →⁰ B = A ⇒[ 0 ] B  -- causal
+-- A →¹ B = A ⇒[ 1 ] B  -- contractive
+
+-- constᵃ : (s : Stream B) → A →⁰ B
+-- constᵃ s = mk (const↓ {s = s})
+
+-- mapᵃ : (A → B) → (A →⁰ B)
+-- mapᵃ f = mk (map↓ f)
+
+-- delayᵃ : A → A →¹ A
+-- delayᵃ a = mk (delay↓ {a = a})
