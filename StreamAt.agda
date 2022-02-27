@@ -1,3 +1,4 @@
+-- {-# OPTIONS --show-implicit #-}
 {-# OPTIONS --guardedness #-}
 
 -- Define and use ! instead of take. Simpler proofs, and more readily
@@ -206,60 +207,6 @@ toggleᵈ′ : Bool →¹ Bool
 toggleᵈ′ = mapᵈ not ∘ᵈ delayᵈ false
 
 
--- Alternative representation
-
--- Representation of causal stream functions
-record Gen₀ (A B : Set) : Set where
-  coinductive
-  constructor mk
-  field
-    cont : A → B × Gen₀ A B
-
-open Gen₀
-
-gen₀ : Gen₀ A B → A →ˢ B
-head (gen₀ g s) = proj₁ (cont g (head s))
-tail (gen₀ g s) = gen₀ (proj₂ (cont g (head s))) (tail s)
-
-gen₀↓ : ∀ {g : Gen₀ A B} → gen₀ g ↓ 0
-gen₀↓ s~t zero (s≤s _) rewrite ≡[]-head s~t = refl
-gen₀↓ {g = g} {t = t} s~t (suc i) (s≤s i<n)
- rewrite ≡[]-head s~t
-       | gen₀↓ {g = proj₂ (cont g (head t))} (≡[]-tail s~t) i i<n = refl
-
--- gen₀↓ {g = g} {s = s} {t} s~t zero (s≤s _) =
---   begin
---     gen₀ g s ! zero
---   ≡⟨⟩
---     proj₁ (cont g (head s))
---   ≡⟨ cong (proj₁ ∘ cont g) (≡[]-head s~t) ⟩
---     proj₁ (cont g (head t))
---   ≡⟨⟩
---     gen₀ g t ! zero
---   ∎
-
--- gen₀↓ {g = g} {s = s} {t} s~t (suc i) (s≤s i<n) =
---   begin
---     gen₀ g s ! suc i
---   ≡⟨⟩
---     gen₀ (proj₂ (cont g (head s))) (tail s) ! i
---   ≡⟨ cong (λ ● → gen₀ (proj₂ (cont g ●)) (tail s) ! i) (≡[]-head s~t) ⟩
---     gen₀ (proj₂ (cont g (head t))) (tail s) ! i
---   ≡⟨ gen₀↓ {g = proj₂ (cont g (head t))} (≡[]-tail s~t) i i<n ⟩
---     gen₀ (proj₂ (cont g (head t))) (tail t) ! i
---   ≡⟨⟩
---     gen₀ g t ! suc i
---   ∎
-
--- gen₀ yields causal functions
-gen₀ᵈ : Gen₀ A B → A →⁰ B
-gen₀ᵈ g = mk (gen₀↓ {g = g})
-
--- Generating trees parametrized by lag
-Gen : ℕ → Set → Set → Set
-Gen zero = Gen₀
-Gen (suc n) A B = B × Gen n A B
-
 infixr 5 _◂_
 _◂_ : B → (A →ˢ B) → (A →ˢ B)
 (b ◂ f) s = b ◃ f s
@@ -288,17 +235,6 @@ _◂_ : B → (A →ˢ B) → (A →ˢ B)
 --     (b ◂ f) t ! i
 --   ∎
 
-gen : Gen n A B → A →ˢ B
-gen {zero } = gen₀
-gen {suc n} (b , gₙ) = b ◂ gen gₙ
-
-gen↓ : ∀ {g : Gen n A B} → gen g ↓ n
-gen↓ {n = zero } = gen₀↓
-gen↓ {n = suc n} = ◂-↓ gen↓
-
-genᵈ : ∀ (g : Gen n A B) → A →[ n ] B
-genᵈ g = mk (gen↓ {g = g})
-
 
 
 -- Coalgebraic representation of causal stream functions
@@ -306,19 +242,13 @@ record Coalg₀ (A B C : Set) : Set₁ where
   coinductive
   constructor mk
   field
-    -- cont : A × C → B × C
-    out  : A → C → B
-    next : A → C → C
+    cont : C × A → C × B
 
 open Coalg₀ public
 
 coalg₀ : Coalg₀ A B C → C → A →ˢ B
-head (coalg₀ co c s) = out co (head s) c
-tail (coalg₀ co c s) = coalg₀ co (next co (head s) c) (tail s)
-
--- TODO: Maybe move C into the structure (existentially quantified). I'll then
--- have to move the start state into the record. Probably necessary for a
--- category, since the state type changes.
+head (coalg₀ co c s) = proj₂ (cont co (c , head s))
+tail (coalg₀ co c s) = coalg₀ co (proj₁ (cont co (c , head s))) (tail s)
 
 Coalg : ℕ → Set → Set → Set → Set₁
 Coalg zero = Coalg₀
@@ -331,16 +261,16 @@ Coalg (suc n) A B C = B × Coalg n A B C
 coalg₀↓ : ∀ {h : Coalg₀ A B C} {c : C} → coalg₀ h c ↓ 0
 coalg₀↓ s~t zero (s≤s _) rewrite ≡[]-head s~t = refl
 coalg₀↓ {h = h} {c} {s = s} {t = t} s~t (suc i) (s≤s i<n)
- rewrite ≡[]-head s~t
-       | coalg₀↓ {h = h} {c = next h (head t) c} (≡[]-tail s~t) i i<n = refl
+ rewrite ≡[]-head s~t | coalg₀↓ {h = h} {c = proj₁ (cont h (c , head t))}
+                                (≡[]-tail s~t) i i<n   = refl
 
 -- coalg₀↓ {h = h} {c} {s = s} {t} s~t zero (s≤s _) =
 --   begin
 --     coalg₀ h c s ! zero
 --   ≡⟨⟩
---     out h (head s) c
---   ≡⟨ cong (λ ● → out h ● c) (≡[]-head s~t) ⟩
---     out h (head t) c
+--     proj₁ (cont h (head s , c))
+--   ≡⟨ cong (λ ● → proj₁ (cont h (● , c))) (≡[]-head s~t) ⟩
+--     proj₁ (cont h (c , head t))
 --   ≡⟨⟩
 --     coalg₀ h c t ! zero
 --   ∎
@@ -349,11 +279,11 @@ coalg₀↓ {h = h} {c} {s = s} {t = t} s~t (suc i) (s≤s i<n)
 --   begin
 --     coalg₀ h c s ! suc i
 --   ≡⟨⟩
---     coalg₀ h (next h (head s) c) (tail s) ! i
---   ≡⟨ cong (λ ● → coalg₀ h (next h ● c) (tail s) ! i) (≡[]-head s~t) ⟩
---     coalg₀ h (next h (head t) c) (tail s) ! i
+--     coalg₀ h (proj₂ (cont h (head s , c))) (tail s) ! i
+--   ≡⟨ cong (λ ● → coalg₀ h (proj₂ (cont h (● , c))) (tail s) ! i) (≡[]-head s~t) ⟩
+--     coalg₀ h (proj₂ (cont h (c , head t))) (tail s) ! i
 --   ≡⟨ coalg₀↓ (≡[]-tail s~t) i i<n ⟩
---     coalg₀ h (next h (head t) c) (tail t) ! i
+--     coalg₀ h (proj₂ (cont h (c , head t))) (tail t) ! i
 --   ≡⟨⟩
 --     coalg₀ h c t ! suc i
 --   ∎
@@ -369,8 +299,19 @@ coalg↓ {n = suc n} = ◂-↓ coalg↓
 coalgᵈ : ∀ (h : Coalg n A B C) (c : C) → A →[ n ] B
 coalgᵈ h c = mk (coalg↓ {h = h} {c}) -- TODO: coalg↓ explicit args?
 
+-- Package seed type and value with coalgebra
+infix 0 _⇒[_]_
+record _⇒[_]_ (A : Set) (n : ℕ) (B : Set) : Set₁ where
+  constructor mk
+  field
+    {S} : Set
+    h : Coalg n A B S
+    c : S
 
-genCoalg₀ : Gen₀ A B → Coalg₀ A B (Gen₀ A B) × Gen₀ A B
-genCoalg₀ g₀ = mk (λ a g → proj₁ (cont g a)) (λ a g → proj₂ (cont g a)) , g₀
+autᵈ : A ⇒[ n ] B  →  A →[ n ] B
+autᵈ (mk h s) = coalgᵈ h s
 
--- TODO: Gen₀ & Coalg₀ functions both or neither return pairs.
+
+-- TODO: _→[_]_ operations on _⇒[_]_
+
+-- TODO: _→ᵈ_ and _⇒ᵈ_, existentially hiding lags.
