@@ -208,6 +208,7 @@ toggleᵈ′ = mapᵈ not ∘ᵈ delayᵈ false
 
 -- Alternative representation
 
+-- Representation of causal stream functions
 record Gen₀ (A B : Set) : Set where
   coinductive
   constructor mk₀
@@ -250,11 +251,11 @@ gen₀↓ {g = g} {t = t} s~t (suc i) (s≤s i<n)
 --     gen₀ˢ g t ! suc i
 --   ∎
 
--- gen yields causal functions
+-- gen₀ yields causal functions
 gen₀ᵈ : Gen₀ A B → A →⁰ B
 gen₀ᵈ g = mk (gen₀↓ {g = g})
 
--- Generating trees
+-- Generating trees parametrized by lag
 Gen : ℕ → Set → Set → Set
 Gen zero = Gen₀
 Gen (suc n) A B = B × Gen n A B
