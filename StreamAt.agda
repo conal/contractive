@@ -6,14 +6,15 @@
 
 module StreamAt where
 
-open import Function using (_∘_; id; const)
+open import Function using (_∘_; id; const; _$_)
+open import Data.Unit using (⊤; tt)
 open import Data.Product as × hiding (map; zip)
 open import Data.Nat
 open import Data.Nat.Properties
-open import Data.Vec as v using (Vec; []; _∷_)
+open import Data.Vec as v hiding (head; tail; map; zip; unzip; take)
 open import Data.Vec.Properties
-
-open import Relation.Binary.PropositionalEquality ; open ≡-Reasoning
+open import Relation.Binary.PropositionalEquality hiding ([_])
+open ≡-Reasoning
 
 record Stream A : Set where
   coinductive
@@ -112,8 +113,10 @@ constant f = ∀ {d} → f ↓ d
 ≡-↓ refl = id
 
 ≤-↓ : e ≤ d → fˢ ↓ d → fˢ ↓ e
-≤-↓ e≤d delayed-d {n} s~t = ≡[≤] (+-monoˡ-≤ n e≤d) (delayed-d s~t)
+≤-↓ e≤d f↓ {n} s~t = ≡[≤] (+-monoˡ-≤ n e≤d) (f↓ s~t)
 
+id↓ : causal {A = A} id
+id↓ s~t = s~t
 
 -- Constant functions never sense their inputs.
 const↓ : constant {A = A} (const s)
@@ -134,14 +137,38 @@ map↓ f {n} {s} {t} s~t i i<n
 --     map f t ! i
 --   ∎
 
+infixr 5 _◂↓_
+_◂↓_ : (b : B) → fˢ ↓ d → (b ◂ fˢ) ↓ suc d
+(b ◂↓ f↓) s~t zero 0<1+d+n = refl
+(b ◂↓ f↓) s~t (suc i) (s≤s i<d+n) = f↓ s~t i i<d+n
+
+infixr 5 _◂*↓_
+_◂*↓_ : (bs : Vec B e) → fˢ ↓ d → (bs ◂* fˢ) ↓ (e + d)
+[]       ◂*↓ f↓ = f↓
+(b ∷ bs) ◂*↓ f↓ = b ◂↓ bs ◂*↓ f↓
+
+delay*ˢ : Vec A n → A →ˢ A
+delay*ˢ as = as ◂* id
+
 delayˢ : A → A →ˢ A
-delayˢ = _◃_
+delayˢ a = delay*ˢ [ a ]
 
-delay↓ : ∀ {a : A} → contractive (delayˢ a)
-delay↓ s~t  zero       _     = refl
-delay↓ s~t (suc i) (s≤s i<n) = s~t i i<n
+-- delayˢ a = a ◂ id
+-- delayˢ = _◃_
 
--- delay↓ {a = a} {suc n} {s} {t} s~t (suc i) (s≤s i<n) =
+delay*↓ : (as : Vec A d) → delay*ˢ as ↓ d
+delay*↓ as = ≡-↓ (+-identityʳ _) (as ◂*↓ id↓)
+
+delay↓ : ∀ (a : A) → contractive (delayˢ a)
+delay↓ a = [ a ] ◂*↓ id↓
+
+-- delay↓ a = a ◂↓ id↓
+
+-- delay↓ : ∀ (a : A) → contractive (delayˢ a)
+-- delay↓ _ s~t  zero       _     = refl
+-- delay↓ _ s~t (suc i) (s≤s i<n) = s~t i i<n
+
+-- delay↓ a {suc n} {s} {t} s~t (suc i) (s≤s i<n) =
 --   begin
 --     delayˢ a s ! suc i
 --   ≡⟨⟩
@@ -160,7 +187,7 @@ _∘↓_ {e = e} {d = d} g↓ f↓ {n} rewrite +-assoc e d n = g↓ ∘ f↓
 ∘↓-map : gˢ ↓ e → (f : A → B) → (gˢ ∘ map f) ↓ e
 ∘↓-map {e = e} g↓ f = ≡-↓ (+-identityʳ e) (g↓ ∘↓ map↓ f)
 
--- Parallel composition with equal delays.
+-- Parallel composition with equal lags
 infixr 7 _⊗↓≡_
 _⊗↓≡_ : fˢ ↓ d → gˢ ↓ d → fˢ ⊗ gˢ ↓ d
 _⊗↓≡_ {fˢ = fˢ} {gˢ = gˢ} f↓ g↓ {n} {s = s} {t} s~t i i<n =
@@ -179,7 +206,7 @@ _⊗↓≡_ {fˢ = fˢ} {gˢ = gˢ} f↓ g↓ {n} {s = s} {t} s~t i i<n =
     (fˢ ⊗ gˢ) t ! i
   ∎
 
--- Parallel composition with arbitrary delays
+-- Parallel composition with arbitrary lags
 infixr 7 _⊗↓_
 _⊗↓_ : fˢ ↓ d → gˢ ↓ e → (fˢ ⊗ gˢ) ↓ (d ⊓ e)
 f↓ ⊗↓ g↓ = ≤-↓ (m⊓n≤m _ _) f↓ ⊗↓≡ ≤-↓ (m⊓n≤n _ _) g↓
@@ -192,6 +219,24 @@ record _→[_]_ (A : Set) (d : ℕ) (B : Set) : Set where
     {f} : A →ˢ B
     f↓  : f ↓ d
 
+infix 0 _→⁰_ _→¹_
+_→⁰_ _→¹_ : Set → Set → Set
+A →⁰ B = A →[ 0 ] B  -- causal
+A →¹ B = A →[ 1 ] B  -- contractive
+
+coerceᵈ : d ≡ e → (A →[ d ] B) → (A →[ e ] B)
+coerceᵈ refl = id
+
+infixr 5 _◂ᵈ_
+_◂ᵈ_ : B → (A →[ d ] B) → (A →[ suc d ] B)
+b ◂ᵈ mk f↓ = mk (b ◂↓ f↓)
+
+infixr 5 _◂*ᵈ_
+_◂*ᵈ_ : Vec B e → (A →[ d ] B) → (A →[ e + d ] B)
+bs ◂*ᵈ mk f↓ = mk (bs ◂*↓ f↓)
+
+idᵈ : A →⁰ A
+idᵈ = mk id↓
 
 -- Sequential composition
 infixr 9 _∘ᵈ_
@@ -203,19 +248,19 @@ infixr 7 _⊗ᵈ_
 _⊗ᵈ_ : (A →[ d ] C) → (B →[ e ] D) → (A × B →[ d ⊓ e ] C × D)
 mk f↓ ⊗ᵈ mk g↓ = mk (f↓ ⊗↓ g↓)
 
-infix 0 _→⁰_ _→¹_
-_→⁰_ _→¹_ : Set → Set → Set
-A →⁰ B = A →[ 0 ] B  -- causal
-A →¹ B = A →[ 1 ] B  -- contractive
-
 constᵈ : (s : Stream B) → A →⁰ B
 constᵈ s = mk (const↓ {s = s})
 
 mapᵈ : (A → B) → (A →⁰ B)
 mapᵈ f = mk (map↓ f)
 
+delay*ᵈ : Vec A d → A →[ d ] A
+delay*ᵈ as = coerceᵈ (+-identityʳ _) (as ◂*ᵈ idᵈ)
+
 delayᵈ : A → A →¹ A
-delayᵈ a = mk (delay↓ {a = a})
+delayᵈ a = a ◂ᵈ idᵈ
+
+-- delayᵈ a = mk (delay↓ a)
 
 open import Data.Bool hiding (_≤_; _<_)
 
@@ -223,142 +268,83 @@ open import Data.Bool hiding (_≤_; _<_)
 toggleᵈ′ : Bool →¹ Bool
 toggleᵈ′ = mapᵈ not ∘ᵈ delayᵈ false
 
-infixr 5 _◂↓_
-_◂↓_ : (b : B) → fˢ ↓ d → (b ◂ fˢ) ↓ suc d
-(b ◂↓ f↓) s~t zero 0<1+d+n = refl
-(b ◂↓ f↓) s~t (suc i) (s≤s i<d+n) = f↓ s~t i i<d+n
 
--- _◂-↓_ {f = f} b f↓ {s = s} {t} s~t (suc i) (s≤s i<d+n) =
---   begin
---     (b ◂ f) s ! suc i
---   ≡⟨⟩
---     f s ! i
---   ≡⟨ f↓ s~t i i<d+n ⟩
---     f t ! i
---   ≡⟨⟩
---     (b ◂ f) t ! suc i
---   ∎
-
--- _◂-↓_ {f = f} b f↓ {s = s} {t} s~t i i<1+d+n =
---   begin
---     (b ◂ f) s ! i
---   ≡⟨ {!!} ⟩
---     {!!}
---   ≡⟨⟩
---     (b ◂ f) t ! i
---   ∎
-
-infixr 5 _◂*↓_
-_◂*↓_ : (bs : Vec B e) → fˢ ↓ d → (bs ◂* fˢ) ↓ (e + d)
-[] ◂*↓ f↓ = f↓
-(b ∷ bs) ◂*↓ f↓ = b ◂↓ bs ◂*↓ f↓
-
-
--- Coalgebraic representation of causal stream functions
-record Coalg₀ (A B C : Set) : Set₁ where
-  coinductive
-  constructor mk
-  field
-    cont : C × A → C × B
-
-open Coalg₀ public
-
-coalg₀ : Coalg₀ A B C → C → A →ˢ B
-head (coalg₀ co c s) = proj₂ (cont co (c , head s))
-tail (coalg₀ co c s) = coalg₀ co (proj₁ (cont co (c , head s))) (tail s)
-
-coalg₀↓ : ∀ {h : Coalg₀ A B C} {c : C} → causal (coalg₀ h c)
-coalg₀↓ s~t zero (s≤s _) rewrite ≡[]-head s~t = refl
-coalg₀↓ {h = h} {c} {s = s} {t = t} s~t (suc i) (s≤s i<n)
- rewrite ≡[]-head s~t | coalg₀↓ {h = h} {c = proj₁ (cont h (c , head t))}
-                                (≡[]-tail s~t) i i<n   = refl
-
--- coalg₀↓ {h = h} {c} {s = s} {t} s~t zero (s≤s _) =
---   begin
---     coalg₀ h c s ! zero
---   ≡⟨⟩
---     proj₁ (cont h (head s , c))
---   ≡⟨ cong (λ ● → proj₁ (cont h (● , c))) (≡[]-head s~t) ⟩
---     proj₁ (cont h (c , head t))
---   ≡⟨⟩
---     coalg₀ h c t ! zero
---   ∎
-
--- coalg₀↓ {h = h} {c} {s = s} {t = t} s~t (suc i) (s≤s i<n) =
---   begin
---     coalg₀ h c s ! suc i
---   ≡⟨⟩
---     coalg₀ h (proj₂ (cont h (head s , c))) (tail s) ! i
---   ≡⟨ cong (λ ● → coalg₀ h (proj₂ (cont h (● , c))) (tail s) ! i) (≡[]-head s~t) ⟩
---     coalg₀ h (proj₂ (cont h (c , head t))) (tail s) ! i
---   ≡⟨ coalg₀↓ (≡[]-tail s~t) i i<n ⟩
---     coalg₀ h (proj₂ (cont h (c , head t))) (tail t) ! i
---   ≡⟨⟩
---     coalg₀ h c t ! suc i
---   ∎
-
--- Coalgebraic representation of `d`-lagging stream functions
-Coalg : ℕ → Set → Set → Set → Set₁
-Coalg zero = Coalg₀
-Coalg (suc d) A B C = B × Coalg d A B C
-
-coalg : Coalg d A B C → C → A →ˢ B
-coalg {zero } = coalg₀
-coalg {suc d} (b , gₙ) c = b ◂ coalg gₙ c
-
-coalg↓ : ∀ {h : Coalg d A B C} {c} → coalg h c ↓ d
-coalg↓ {d = zero } = coalg₀↓
-coalg↓ {d = suc d} = _ ◂↓ coalg↓
-
-coalgᵈ : ∀ (h : Coalg d A B C) (c : C) → A →[ d ] B
-coalgᵈ h c = mk (coalg↓ {h = h} {c}) -- TODO: coalg↓ explicit args?
-
--- Package seed type and value with coalgebra
-infix 0 _⇒[_]_
-record _⇒[_]_ (A : Set) (d : ℕ) (B : Set) : Set₁ where
+-- Package seed type and value with seed-parametrized coalgebra to get a Mealy
+-- machine, denoting a causal stream function.
+infix 0 _→ᶜ_
+record _→ᶜ_ (A B : Set) : Set₁ where
   constructor mk
   field
     {S} : Set
-    c : S
-    h : Coalg d A B S
+    state : S
+    h : A × S → B × S
 
-autᵈ : A ⇒[ d ] B  →  A →[ d ] B
-autᵈ (mk h c) = coalgᵈ c h
+stepsᶜ : (A →ᶜ B) × Vec A n → (A →ᶜ B) × Vec B n
+stepsᶜ {A} {B} (mk {S = S} c h , as) = let bs , c′ = go (as , c) in mk c′ h , bs
+ where
+   go : Vec A n × S → Vec B n × S
+   go ([] , c) = [] , c
+   go (x ∷ xs , cᵢ) =
+     let y , c′  = h  (x  , cᵢ)
+         ys , cₒ = go (xs , c′)
+     in
+       y ∷ ys , cₒ
 
--- run : {n : ℕ} → Vec A n × (A ⇒[ d ] B) → Vec B n × (A ⇒[ d ] B)
--- run ([] , f) = [] , f
--- run (x ∷ xs , f) = {!!}
+-- TODO: Rename stream variables s & t to xs & ys, freeing up s & t for states.
 
+runᶜ : (A →ᶜ B) → (A →[ 0 ] B)
+runᶜ {A} {B} (mk {S} c h) = mk (go↓ c)
+ where
+   go : S → A →ˢ B
+   head (go c xs) = proj₁ (h (head xs , c))
+   tail (go c xs) = go (proj₂ (h (head xs , c))) (tail xs)
 
-{-
-TODO:
+   go↓ : (c : S) → causal (go c)
+   go↓ c s~t zero (s≤s _) rewrite ≡[]-head s~t = refl
+   go↓ c {s = s} {t} s~t (suc i) (s≤s i<n)
+     rewrite ≡[]-head s~t | go↓ (proj₂ (h (head t , c))) (≡[]-tail s~t) i i<n
+     = refl
 
-* _→[_]_ operations on _⇒[_]_
-* _→ᵈ_ and _⇒ᵈ_, existentially hiding lags.
-* Prove an inverse to `◂-↓`: If `g ↓ suc d`, then `g` can be written as
-  `b ◂ f` where `f ↓ d`.
--}
+mapᶜ : (A → B) → (A →ᶜ B)
+mapᶜ f = mk {S = ⊤} tt λ (a , tt) → f a , tt
 
--- -- Sequential composition
--- infixr 9 _∘ᵃ_
--- _∘ᵃ_ : (B ⇒[ e ] C) → (A ⇒[ d ] B) → (A ⇒[ e + d ] C)
--- mk y g ∘ᵃ mk x f = mk (x , y) {!!}
+infixr 9 _∘ᶜ_
+_∘ᶜ_ : B →ᶜ C → A →ᶜ B → A →ᶜ C
+mk t g ∘ᶜ mk s f = mk (s , t) λ (a , (s , t)) →
+  let b , s′ = f (a , s)
+      c , t′ = g (b , t)
+  in
+    c , (s′ , t′)
 
--- -- Parallel composition
--- infixr 7 _⊗ᵃ_
--- _⊗ᵃ_ : (A ⇒[ d ] C) → (B ⇒[ e ] D) → (A × B ⇒[ d ⊓ e ] C × D)
--- mk f↓ ⊗ᵃ mk g↓ = mk (f↓ ⊗↓ g↓)
+infixr 7 _⊗ᶜ_
+_⊗ᶜ_ : (A →ᶜ C) → (B →ᶜ D) → (A × B →ᶜ C × D)
+mk s f ⊗ᶜ mk t g = mk (s , t) λ ((a , b) , s , t) →
+  let c , s′ = f (a , s)
+      d , t′ = g (b , t)
+  in
+    (c , d) , (s′ , t′)
 
--- infix 0 _→⁰_ _→¹_
--- _→⁰_ _→¹_ : Set → Set → Set
--- A →⁰ B = A ⇒[ 0 ] B  -- causal
--- A →¹ B = A ⇒[ 1 ] B  -- contractive
+-- d-lagging automaton, denoting a d-lagging stream function
+infix 0 _⇒[_]_
+_⇒[_]_ : Set → ℕ → Set → Set₁
+A ⇒[ d ] B = Vec B d × (A →ᶜ B)
 
--- constᵃ : (s : Stream B) → A →⁰ B
--- constᵃ s = mk (const↓ {s = s})
+run⇒ : (A ⇒[ d ] B) → (A →[ d ] B)
+run⇒ (bs , f) = coerceᵈ (+-identityʳ _) (bs ◂*ᵈ runᶜ f)
 
--- mapᵃ : (A → B) → (A →⁰ B)
--- mapᵃ f = mk (map↓ f)
+infix 0 _⇒⁰_ _⇒¹_
+_⇒⁰_ _⇒¹_ : Set → Set → Set₁
+A ⇒⁰ B = A ⇒[ 0 ] B  -- causal/Mealy
+A ⇒¹ B = A ⇒[ 1 ] B  -- contractive/Moore
 
--- delayᵃ : A → A →¹ A
--- delayᵃ a = mk (delay↓ {a = a})
+-- Sequential composition
+infixr 9 _∘ᵃ_
+_∘ᵃ_ : (B ⇒[ e ] C) → (A ⇒[ d ] B) → (A ⇒[ e + d ] C)
+(cs , g) ∘ᵃ (bs , f) = let g′ , cs′ = stepsᶜ (g , bs) in cs ++ cs′ , g′ ∘ᶜ f
+
+-- Parallel composition with equal lags
+infixr 7 _⊗≡ᵃ_
+_⊗≡ᵃ_ : (A ⇒[ n ] C) → (B ⇒[ n ] D) → (A × B ⇒[ n ] C × D)
+(cs , f) ⊗≡ᵃ (ds , g) = v.zip cs ds , f ⊗ᶜ g
+
+-- TODO: Parallel composition with arbitrary lags, or decide not to.
