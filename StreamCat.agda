@@ -260,8 +260,8 @@ stepsᶜ {A} {B} (mk {S = S} s h , as) = let bs , s′ = go (as , s) in mk s′ 
      in
        y ∷ ys , sₒ
 
-runᶜ : (A →ᶜ B) → (A →ᵈ B)
-runᶜ {A} {B} (mk {S} s h) = mk (go↓ s)
+⟦_⟧ᶜ : (A →ᶜ B) → (A →ᵈ B)
+⟦_⟧ᶜ {A} {B} (mk {S} s h) = mk (go↓ s)
  where
    go : S → A →ˢ B
    head (go s u) = proj₁ (h (head u , s))
@@ -303,8 +303,8 @@ record _→ᵃ_ (A B : Set) : Set₁ where
 
 open _→ᵃ_ using (Δ) public
 
-run⇒ : (A →ᵃ B) → (A →ᵈ B)
-run⇒ (mk bs f) = bs ◂*ᵈ runᶜ f
+⟦_⟧ : (A →ᵃ B) → (A →ᵈ B)
+⟦ mk bs f ⟧ = bs ◂*ᵈ ⟦ f ⟧ᶜ
 
 -- Sequential composition
 infixr 9 _∘ᵃ_
@@ -320,3 +320,6 @@ _⊗≡ᵃ_ (mk cs f) (mk ds g) ⦃ refl ⦄ = mk (v.zip cs ds) (f ⊗ᶜ g)
 -- bit is incorporating surplus leading values into the laggier automaton's
 -- causal representation. We could replace the state of that machine with a list
 -- *and* the old state.
+
+
+-- TODO: Prove that ⟦_⟧ is functorial.
