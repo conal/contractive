@@ -38,6 +38,8 @@ record _≈_ (u v : Stream A) : Set where
 
 open _≈_ public
 
+-- Alternatively, `∀ i → u ! i ≡ v ! i`.
+
 ≈-refl : u ≈ u
 head ≈-refl = refl
 tail ≈-refl = ≈-refl
@@ -60,8 +62,14 @@ repeat : A → Stream A
 head (repeat a) = a
 tail (repeat a) = repeat a
 
+
+-- Stream functions
+infix 0 _→ˢ_
+_→ˢ_ : Set → Set → Set
+A →ˢ B = Stream A → Stream B
+
 infixr 5 _◃*_
-_◃*_ : Vec A n → Stream A → Stream A
+_◃*_ : Vec A n → A →ˢ A
 []       ◃* u = u
 (x ∷ xs) ◃* u = x ◃ (xs ◃* u)
 
@@ -73,11 +81,6 @@ splitAt (suc m) xs with ys , zs , p ← splitAt m (tail xs) =
 
 take : ∀ m (xs : Stream A) → Vec A m
 take m xs with ys , _ , _ ← splitAt m xs = ys
-
--- Stream functions
-infix 0 _→ˢ_
-_→ˢ_ : Set → Set → Set
-A →ˢ B = Stream A → Stream B
 
 drop : ℕ → A →ˢ A
 drop m xs with _ , zs , _ ← splitAt m xs = zs
@@ -191,32 +194,36 @@ head-↓ {fˢ = fˢ} {d} f↓ {u} {v} =
     head (fˢ v)
   ∎
 
--- drop∘↓ : ∀ e → fˢ ↓ e + d → drop e ∘ fˢ ↓ d
--- drop∘↓ {fˢ = fˢ} {d = d} e f↓ {n} {u} {v} u~v i i<d+n =
---   begin
---     (drop e ∘ fˢ) u ! i
---   ≡⟨ drop-! e ⟩
---     fˢ u ! (e + i)
---   ≡⟨ f↓ u~v (e + i) 
---         (subst (e + i <_) (sym (+-assoc e d n)) (+-monoʳ-< e i<d+n)) ⟩
---     fˢ v ! (e + i)
---   ≡˘⟨ drop-! e ⟩
---     (drop e ∘ fˢ) v ! i
---   ∎
+drop∘↓ : ∀ e → fˢ ↓ e + d → drop e ∘ fˢ ↓ d
+drop∘↓ {fˢ = fˢ} {d = d} e f↓ {n} {u} {v} u~v i i<d+n =
+  begin
+    (drop e ∘ fˢ) u ! i
+  ≡⟨ drop-! e ⟩
+    fˢ u ! (e + i)
+  ≡⟨ f↓ u~v (e + i) 
+        (subst (e + i <_) (sym (+-assoc e d n)) (+-monoʳ-< e i<d+n)) ⟩
+    fˢ v ! (e + i)
+  ≡˘⟨ drop-! e ⟩
+    (drop e ∘ fˢ) v ! i
+  ∎
 
 tail↓ : fˢ ↓ suc d → tail ∘ fˢ ↓ d
-tail↓ f↓ u~v i i<d+n = f↓ u~v (suc i) (s≤s i<d+n)
+tail↓ = drop∘↓ 1
 
--- tail↓ = drop∘↓ 1
+-- tail↓ f↓ u~v i i<d+n = f↓ u~v (suc i) (s≤s i<d+n)
 
-as-◂ : fˢ ↓ suc d → ∀ {v} → fˢ ≈̂ head (fˢ v) ◂ tail ∘ fˢ
+as-◂ : fˢ ↓ suc d → ∀ {any} → fˢ ≈̂ head (fˢ any) ◂ tail ∘ fˢ
 head (as-◂ f↓) = head-↓ f↓
 tail (as-◂ f↓) = ≈-refl
 
-as-◂* : ∀ e → fˢ ↓ e + d → ∀ {v} → fˢ ≈̂ take e (fˢ v) ◂* drop e ∘ fˢ
+-- Main characterization theorem on lagging stream functions
+as-◂* : ∀ e → fˢ ↓ e + d → ∀ {any} → fˢ ≈̂ take e (fˢ any) ◂* drop e ∘ fˢ
 as-◂* zero f↓ = ≈-refl
 head (as-◂* (suc e) f↓) = head-↓ f↓
 tail (as-◂* (suc e) f↓) = as-◂* e (tail↓ f↓)
+
+-- Since fˢ ↓ e + d → fˢ ↓ e, we could eliminate d from as-◂*. Wait and see how
+-- uses of as-◂* work out. I think drop∘↓ will appear.
 
 id↓ : causal {A = A} id
 id↓ u~v = u~v
@@ -252,6 +259,8 @@ _◂*↓_ : (bs : Vec B e) → fˢ ↓ d → (bs ◂* fˢ) ↓ (e + d)
 
 delay*ˢ : Vec A n → A →ˢ A
 delay*ˢ as = as ◂* id
+
+-- TODO: Consider instead defining bs ◂* f
 
 delayˢ : A → A →ˢ A
 delayˢ a = delay*ˢ [ a ]
