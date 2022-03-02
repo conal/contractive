@@ -7,10 +7,12 @@ open import Data.Unit using (⊤; tt)
 open import Data.Product as × hiding (map; zip)
 open import Data.Nat
 open import Data.Nat.Properties
-open import Data.Vec as v hiding (head; tail; map; zip; unzip; take)
+open import Data.Vec as v using (Vec; []; _∷_; [_]; _++_)
 open import Data.Vec.Properties
 open import Relation.Binary.PropositionalEquality hiding ([_])
 open ≡-Reasoning
+
+infixr 5 _◃_
 
 record Stream A : Set where
   coinductive
@@ -23,18 +25,81 @@ open Stream public
 
 private variable
   A B C D : Set
-  m n d e : ℕ
+  m n d e i : ℕ
   u v : Stream A
 
-infix 8 _!_
+infix 4 _≈_
+record _≈_ (u v : Stream A) : Set where
+  coinductive
+  constructor _◃_
+  field
+    head : head u ≡ head v
+    tail : tail u ≈ tail v
+
+open _≈_ public
+
+≈-refl : u ≈ u
+head ≈-refl = refl
+tail ≈-refl = ≈-refl
+
+infixl 8 _!_
 _!_ : Stream A → ℕ → A
 u ! zero  = head u
 u ! suc i = tail u ! i
+
+!-cong : ∀ i → u ≈ v → u ! i ≡ v ! i
+!-cong  zero   =            head
+!-cong (suc i) = !-cong i ∘ tail
+
+-- -- Or this order?
+-- !-cong′ : u ≈ v → ∀ i → u ! i ≡ v ! i
+-- !-cong′ u≈v  zero   = head u≈v
+-- !-cong′ u≈v (suc i) = !-cong′ (tail u≈v) i
+
+repeat : A → Stream A
+head (repeat a) = a
+tail (repeat a) = repeat a
+
+infixr 5 _◃*_
+_◃*_ : Vec A n → Stream A → Stream A
+[]       ◃* u = u
+(x ∷ xs) ◃* u = x ◃ (xs ◃* u)
+
+splitAt : ∀ m (xs : Stream A) →
+          ∃₂ λ (ys : Vec A m) (zs : Stream A) → xs ≈ ys ◃* zs
+splitAt  zero   xs = [] , xs , ≈-refl
+splitAt (suc m) xs with ys , zs , p ← splitAt m (tail xs) =
+  head xs ∷ ys , zs , refl ◃ p
+
+take : ∀ m (xs : Stream A) → Vec A m
+take m xs with ys , _ , _ ← splitAt m xs = ys
 
 -- Stream functions
 infix 0 _→ˢ_
 _→ˢ_ : Set → Set → Set
 A →ˢ B = Stream A → Stream B
+
+drop : ℕ → A →ˢ A
+drop m xs with _ , zs , _ ← splitAt m xs = zs
+
+drop-! : ∀ e → drop e u ! i ≡ u ! (e + i)
+drop-!  zero   = refl
+drop-! (suc e) = drop-! e
+
+-- drop-! {u = u} {i} (suc e) =
+--   begin
+--     drop (suc e) u ! i
+--   ≡⟨⟩
+--     drop e (tail u) ! i
+--   ≡⟨ drop-! e ⟩
+--     tail u ! (e + i)
+--   ≡⟨⟩
+--     u ! (suc e + i)
+--   ∎
+
+infix 4 _≈̂_
+_≈̂_ : (A →ˢ B) → (A →ˢ B) → Set
+f ≈̂ g = ∀ xs → f xs ≈ g xs
 
 private variable fˢ gˢ hˢ : A →ˢ B
 
@@ -70,12 +135,15 @@ infixr 7 _⊗_
 _⊗_ : (A →ˢ C) → (B →ˢ D) → (A × B →ˢ C × D)
 f ⊗ g = zip ∘ ×.map f g ∘ unzip
 
+-- Prefix-equivalence
 infix 4 _≡[_]_
 _≡[_]_ : Stream A → ℕ → Stream A → Set
 u ≡[ n ] v = ∀ i → i < n → u ! i ≡ v ! i
 
+-- Alternatively, take n u ≡ take n v
+
 ≡[]-head : u ≡[ suc n ] v → head u ≡ head v
-≡[]-head u~v =  u~v 0 (s≤s z≤n)
+≡[]-head u~v = u~v 0 (s≤s z≤n)
 
 ≡[]-tail : u ≡[ suc n ] v → tail u ≡[ n ] tail v
 ≡[]-tail u~v i i<n = u~v (suc i) (s≤s i<n)
@@ -92,6 +160,10 @@ infix 4 _↓_
 _↓_ : (A →ˢ B) → ℕ → Set
 f ↓ d = ∀ {n u v} → u ≡[ n ] v → f u ≡[ d + n ] f v
 
+-- Another bit I've been meaning to state and prove: every stream function `f :
+-- A →ˢ B` (semantics) lagging by `n` can be written as `bs ◂* g` where `b : Vec
+-- B n` and `g : A →ˢ B`.
+
 causal : (A →ˢ B) → Set
 causal = _↓ 0
 
@@ -106,6 +178,45 @@ constant f = ∀ {d} → f ↓ d
 
 ≤-↓ : e ≤ d → fˢ ↓ d → fˢ ↓ e
 ≤-↓ e≤d f↓ {n} u~v = ≡[≤] (+-monoˡ-≤ n e≤d) (f↓ u~v)
+
+head-↓ : fˢ ↓ suc d → ∀ {u v} → head (fˢ u) ≡ head (fˢ v)
+head-↓ {fˢ = fˢ} {d} f↓ {u} {v} =
+  begin
+    head (fˢ u)
+  ≡⟨⟩
+    fˢ u  ! 0
+  ≡⟨ f↓ {n = 0} (λ { i () }) 0 (s≤s z≤n) ⟩
+    fˢ v ! 0
+  ≡⟨⟩
+    head (fˢ v)
+  ∎
+
+-- drop∘↓ : ∀ e → fˢ ↓ e + d → drop e ∘ fˢ ↓ d
+-- drop∘↓ {fˢ = fˢ} {d = d} e f↓ {n} {u} {v} u~v i i<d+n =
+--   begin
+--     (drop e ∘ fˢ) u ! i
+--   ≡⟨ drop-! e ⟩
+--     fˢ u ! (e + i)
+--   ≡⟨ f↓ u~v (e + i) 
+--         (subst (e + i <_) (sym (+-assoc e d n)) (+-monoʳ-< e i<d+n)) ⟩
+--     fˢ v ! (e + i)
+--   ≡˘⟨ drop-! e ⟩
+--     (drop e ∘ fˢ) v ! i
+--   ∎
+
+tail↓ : fˢ ↓ suc d → tail ∘ fˢ ↓ d
+tail↓ f↓ u~v i i<d+n = f↓ u~v (suc i) (s≤s i<d+n)
+
+-- tail↓ = drop∘↓ 1
+
+as-◂ : fˢ ↓ suc d → ∀ v → fˢ ≈̂ head (fˢ v) ◂ tail ∘ fˢ
+head (as-◂ {fˢ = fˢ} f↓ v u) = head-↓ f↓
+tail (as-◂ {fˢ = fˢ} f↓ v u) = ≈-refl
+
+as-◂* : fˢ ↓ e + d → ∀ v → fˢ ≈̂ take e (fˢ v) ◂* drop e ∘ fˢ
+as-◂* {fˢ = fˢ} {zero } {d} f↓ v u = ≈-refl
+head (as-◂* {fˢ = fˢ} {suc e} {d} f↓ v u) = head-↓ f↓
+tail (as-◂* {fˢ = fˢ} {suc e} {d} f↓ v u) = as-◂* {e = e} (tail↓ f↓) v u
 
 id↓ : causal {A = A} id
 id↓ u~v = u~v
@@ -292,6 +403,18 @@ mk u f ⊗ᶜ mk v g = mk (u , v) λ ((a , b) , u , v) →
   in
     (c , d) , (s′ , t′)
 
+open import Data.Vec.Bounded as B using (Vec≤; fromVec) renaming (_,_ to _⊣_)
+
+infixr 5 _◂*ᶜ_
+_◂*ᶜ_ : Vec B n → (A →ᶜ B) → (A →ᶜ B)
+[] ◂*ᶜ f = f  -- Useful optimization? Proofs will be easier without.
+_◂*ᶜ_ {B = B} {n = n} {A} bs₀ (mk {S = S} s₀ h) =
+  -- Stash outputs in a bounded vector/FIFO
+  mk {S = Vec≤ B n × S} (fromVec bs₀ , s₀) λ
+    { (a , ([] ⊣ _) , s) → let b , s′ = h (a , s) in b , B.[] , s′
+    ; (a , (b ∷ bs ⊣ m<n) , s) → b , (bs ⊣ <⇒≤ m<n) , s
+    }
+
 -- d-lagging automaton, denoting a d-lagging stream function
 infix 0 _→ᵃ_
 record _→ᵃ_ (A B : Set) : Set₁ where
@@ -314,12 +437,20 @@ mk cs g ∘ᵃ mk bs f = let g′ , cs′ = stepsᶜ (g , bs) in mk (cs ++ cs′
 -- Parallel composition with equal lags
 infixr 7 _⊗≡ᵃ_
 _⊗≡ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) ⦃ _ : Δ f ≡ Δ g ⦄ → (A × B →ᵃ C × D)
-_⊗≡ᵃ_ (mk cs f) (mk ds g) ⦃ refl ⦄ = mk (v.zip cs ds) (f ⊗ᶜ g)
+(mk cs f ⊗≡ᵃ mk ds g) ⦃ refl ⦄ = mk (v.zip cs ds) (f ⊗ᶜ g)
 
--- TODO: Parallel composition with arbitrary lags, or decide not to. The tricky
--- bit is incorporating surplus leading values into the laggier automaton's
--- causal representation. We could replace the state of that machine with a list
--- *and* the old state.
+-- This equality constraint precludes a monoidal category.
 
+-- Parallel composition with arbitrary lags
+infixr 7 _⊗ᵃ_
+_⊗ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) → (A × B →ᵃ C × D)
+mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
+  let m⊓n = m ⊓ n
+      less-than-or-equal {k = m′} m⊓n+m′≡m = ≤⇒≤″ (m⊓n≤m m n)
+      less-than-or-equal {k = n′} m⊓n+n′≡n = ≤⇒≤″ (m⊓n≤n m n)
+      csˡ , csʳ , _ = v.splitAt m⊓n (subst (Vec _) (sym m⊓n+m′≡m) cs)
+      dsˡ , dsʳ , _ = v.splitAt m⊓n (subst (Vec _) (sym m⊓n+n′≡n) ds)
+  in
+    mk {Δ = m⊓n} (v.zip csˡ dsˡ) ((csʳ ◂*ᶜ f) ⊗ᶜ (dsʳ ◂*ᶜ g))
 
 -- TODO: Prove that ⟦_⟧ is functorial.
