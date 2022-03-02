@@ -441,16 +441,20 @@ _⊗≡ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) ⦃ _ : Δ f ≡ Δ g ⦄ → (A
 
 -- This equality constraint precludes a monoidal category.
 
+private
+  split : m ≤ n → Vec A n → Vec A m × Vec A (n ∸ m)
+  split {m} {n} m≤n xs =
+   let less-than-or-equal p = ≤⇒≤″ m≤n
+       xsˡ , xsʳ , _ = v.splitAt m (subst (Vec _) (sym p) xs)
+   in xsˡ , xsʳ
+
 -- Parallel composition with arbitrary lags
 infixr 7 _⊗ᵃ_
 _⊗ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) → (A × B →ᵃ C × D)
 mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
-  let m⊓n = m ⊓ n
-      less-than-or-equal {k = m′} m⊓n+m′≡m = ≤⇒≤″ (m⊓n≤m m n)
-      less-than-or-equal {k = n′} m⊓n+n′≡n = ≤⇒≤″ (m⊓n≤n m n)
-      csˡ , csʳ , _ = v.splitAt m⊓n (subst (Vec _) (sym m⊓n+m′≡m) cs)
-      dsˡ , dsʳ , _ = v.splitAt m⊓n (subst (Vec _) (sym m⊓n+n′≡n) ds)
+  let csˡ , csʳ = split (m⊓n≤m m n) cs
+      dsˡ , dsʳ = split (m⊓n≤n m n) ds
   in
-    mk {Δ = m⊓n} (v.zip csˡ dsˡ) ((csʳ ◂*ᶜ f) ⊗ᶜ (dsʳ ◂*ᶜ g))
+    mk (v.zip csˡ dsˡ) ((csʳ ◂*ᶜ f) ⊗ᶜ (dsʳ ◂*ᶜ g))
 
 -- TODO: Prove that ⟦_⟧ is functorial.
