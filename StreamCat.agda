@@ -99,7 +99,7 @@ drop-! (suc e) = drop-! e
 
 infix 4 _≈̂_
 _≈̂_ : (A →ˢ B) → (A →ˢ B) → Set
-f ≈̂ g = ∀ xs → f xs ≈ g xs
+f ≈̂ g = ∀ {u} → f u ≈ g u
 
 private variable fˢ gˢ hˢ : A →ˢ B
 
@@ -209,14 +209,14 @@ tail↓ f↓ u~v i i<d+n = f↓ u~v (suc i) (s≤s i<d+n)
 
 -- tail↓ = drop∘↓ 1
 
-as-◂ : fˢ ↓ suc d → ∀ v → fˢ ≈̂ head (fˢ v) ◂ tail ∘ fˢ
-head (as-◂ {fˢ = fˢ} f↓ v u) = head-↓ f↓
-tail (as-◂ {fˢ = fˢ} f↓ v u) = ≈-refl
+as-◂ : fˢ ↓ suc d → ∀ {v} → fˢ ≈̂ head (fˢ v) ◂ tail ∘ fˢ
+head (as-◂ f↓) = head-↓ f↓
+tail (as-◂ f↓) = ≈-refl
 
-as-◂* : fˢ ↓ e + d → ∀ v → fˢ ≈̂ take e (fˢ v) ◂* drop e ∘ fˢ
-as-◂* {fˢ = fˢ} {zero } {d} f↓ v u = ≈-refl
-head (as-◂* {fˢ = fˢ} {suc e} {d} f↓ v u) = head-↓ f↓
-tail (as-◂* {fˢ = fˢ} {suc e} {d} f↓ v u) = as-◂* {e = e} (tail↓ f↓) v u
+as-◂* : ∀ e → fˢ ↓ e + d → ∀ {v} → fˢ ≈̂ take e (fˢ v) ◂* drop e ∘ fˢ
+as-◂* zero f↓ = ≈-refl
+head (as-◂* (suc e) f↓) = head-↓ f↓
+tail (as-◂* (suc e) f↓) = as-◂* e (tail↓ f↓)
 
 id↓ : causal {A = A} id
 id↓ u~v = u~v
@@ -434,12 +434,13 @@ infixr 9 _∘ᵃ_
 _∘ᵃ_ : (B →ᵃ C) → (A →ᵃ B) → (A →ᵃ C)
 mk cs g ∘ᵃ mk bs f = let g′ , cs′ = stepsᶜ (g , bs) in mk (cs ++ cs′) (g′ ∘ᶜ f)
 
--- Parallel composition with equal lags
-infixr 7 _⊗≡ᵃ_
-_⊗≡ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) ⦃ _ : Δ f ≡ Δ g ⦄ → (A × B →ᵃ C × D)
-(mk cs f ⊗≡ᵃ mk ds g) ⦃ refl ⦄ = mk (v.zip cs ds) (f ⊗ᶜ g)
+private
+  -- Parallel composition with equal lags
+  infixr 7 _⊗≡ᵃ_
+  _⊗≡ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) ⦃ _ : Δ f ≡ Δ g ⦄ → (A × B →ᵃ C × D)
+  (mk cs f ⊗≡ᵃ mk ds g) ⦃ refl ⦄ = mk (v.zip cs ds) (f ⊗ᶜ g)
 
--- This equality constraint precludes a monoidal category.
+  -- This equality constraint precludes a monoidal category.
 
 private
   split : m ≤ n → Vec A n → Vec A m × Vec A (n ∸ m)
