@@ -7,13 +7,15 @@ open import Data.Unit using (⊤; tt)
 open import Data.Product as × hiding (map; zip)
 open import Data.Nat
 open import Data.Nat.Properties
-open import Data.Vec as v using (Vec; []; _∷_; [_]; _++_)
+open import Data.Vec as v using (Vec; []; _∷_; _++_; _∷ʳ_; uncons)
 open import Data.Vec.Properties
 open import Relation.Binary.PropositionalEquality hiding ([_])
 open ≡-Reasoning
 
-infixr 5 _◃_
+-- Misc
+pattern [_] a = a ∷ []
 
+infixr 5 _◃_
 record Stream A : Set where
   coinductive
   constructor _◃_ 
@@ -69,9 +71,12 @@ _→ˢ_ : Set → Set → Set
 A →ˢ B = Stream A → Stream B
 
 infixr 5 _◃*_
-_◃*_ : Vec A n → A →ˢ A
+_◃*_ buffer : Vec A n → A →ˢ A
 []       ◃* u = u
 (x ∷ xs) ◃* u = x ◃ (xs ◃* u)
+
+-- alias
+buffer = _◃*_
 
 splitAt : ∀ m (xs : Stream A) →
           ∃₂ λ (ys : Vec A m) (zs : Stream A) → xs ≈ ys ◃* zs
@@ -89,31 +94,11 @@ drop-! : ∀ e → drop e u ! i ≡ u ! (e + i)
 drop-!  zero   = refl
 drop-! (suc e) = drop-! e
 
--- drop-! {u = u} {i} (suc e) =
---   begin
---     drop (suc e) u ! i
---   ≡⟨⟩
---     drop e (tail u) ! i
---   ≡⟨ drop-! e ⟩
---     tail u ! (e + i)
---   ≡⟨⟩
---     u ! (suc e + i)
---   ∎
-
 infix 4 _≈̂_
 _≈̂_ : (A →ˢ B) → (A →ˢ B) → Set
 f ≈̂ g = ∀ {u} → f u ≈ g u
 
 private variable fˢ gˢ hˢ : A →ˢ B
-
-infixr 5 _◂_
-_◂_ : B → (A →ˢ B) → (A →ˢ B)
-(b ◂ f) u = b ◃ f u
-
-infixr 5 _◂*_
-_◂*_ : Vec B n → (A →ˢ B) → (A →ˢ B)
-[] ◂* f = f
-(b ∷ bs) ◂* f = b ◂ bs ◂* f
 
 map : (A → B) → (A →ˢ B)
 head (map f u) =     f (head u)
@@ -163,10 +148,6 @@ infix 4 _↓_
 _↓_ : (A →ˢ B) → ℕ → Set
 f ↓ d = ∀ {n u v} → u ≡[ n ] v → f u ≡[ d + n ] f v
 
--- Another bit I've been meaning to state and prove: every stream function `f :
--- A →ˢ B` (semantics) lagging by `n` can be written as `bs ◂* g` where `b : Vec
--- B n` and `g : A →ˢ B`.
-
 causal : (A →ˢ B) → Set
 causal = _↓ 0
 
@@ -212,18 +193,19 @@ tail↓ = drop∘↓ 1
 
 -- tail↓ f↓ u~v i i<d+n = f↓ u~v (suc i) (s≤s i<d+n)
 
-as-◂ : fˢ ↓ suc d → ∀ {any} → fˢ ≈̂ head (fˢ any) ◂ tail ∘ fˢ
-head (as-◂ f↓) = head-↓ f↓
-tail (as-◂ f↓) = ≈-refl
+buffer↓ : ∀ (bs : Vec A d) → buffer bs ↓ d
+buffer↓ [] u~v = u~v
+buffer↓ (b ∷ bs) _ zero _ = refl
+buffer↓ (b ∷ bs) u~v (suc i) (s≤s i<n+m) = buffer↓ bs u~v i i<n+m
 
 -- Main characterization theorem on lagging stream functions
-as-◂* : ∀ e → fˢ ↓ e + d → ∀ {any} → fˢ ≈̂ take e (fˢ any) ◂* drop e ∘ fˢ
-as-◂* zero f↓ = ≈-refl
-head (as-◂* (suc e) f↓) = head-↓ f↓
-tail (as-◂* (suc e) f↓) = as-◂* e (tail↓ f↓)
+decomp↓ : ∀ e → fˢ ↓ e + d → ∀ {u} → fˢ ≈̂ buffer (take e (fˢ u)) ∘ drop e ∘ fˢ
+decomp↓ zero f↓ = ≈-refl
+head (decomp↓ (suc e) f↓) = head-↓ f↓
+tail (decomp↓ (suc e) f↓) = decomp↓ e (tail↓ f↓)
 
--- Since fˢ ↓ e + d → fˢ ↓ e, we could eliminate d from as-◂*. Wait and see how
--- uses of as-◂* work out. I think drop∘↓ will appear.
+-- Since fˢ ↓ e + d → fˢ ↓ e, we could eliminate d from decomp↓. Wait and see how
+-- uses of decomp↓ work out. I think drop∘↓ will appear.
 
 id↓ : causal {A = A} id
 id↓ u~v = u~v
@@ -246,33 +228,6 @@ map↓ f {n} {u} {v} u~v i i<n
 --   ≡˘⟨ map-! f v i ⟩
 --     map f v ! i
 --   ∎
-
-infixr 5 _◂↓_
-_◂↓_ : (b : B) → fˢ ↓ d → (b ◂ fˢ) ↓ suc d
-(b ◂↓ f↓) u~v zero 0<1+d+n = refl
-(b ◂↓ f↓) u~v (suc i) (s≤s i<d+n) = f↓ u~v i i<d+n
-
-infixr 5 _◂*↓_
-_◂*↓_ : (bs : Vec B e) → fˢ ↓ d → (bs ◂* fˢ) ↓ (e + d)
-[]       ◂*↓ f↓ = f↓
-(b ∷ bs) ◂*↓ f↓ = b ◂↓ bs ◂*↓ f↓
-
-delay*ˢ : Vec A n → A →ˢ A
-delay*ˢ as = as ◂* id
-
--- TODO: Consider instead defining bs ◂* f
-
-delayˢ : A → A →ˢ A
-delayˢ a = delay*ˢ [ a ]
-
--- delayˢ a = a ◂ id
--- delayˢ = _◃_
-
-delay*↓ : (as : Vec A d) → delay*ˢ as ↓ d
-delay*↓ as = ≡-↓ (+-identityʳ _) (as ◂*↓ id↓)
-
-delay↓ : ∀ (a : A) → contractive (delayˢ a)
-delay↓ a = [ a ] ◂*↓ id↓
 
 -- Sequential composition adds delays.
 infixr 9 _∘↓_
@@ -319,14 +274,6 @@ record _→ᵈ_ (A B : Set) : Set where
 -- coerceᵈ : d ≡ e → (A →[ d ] B) → (A →[ e ] B)
 -- coerceᵈ refl = id
 
-infixr 5 _◂ᵈ_
-_◂ᵈ_ : B → (A →ᵈ B) → (A →ᵈ B)
-b ◂ᵈ mk f↓ = mk (b ◂↓ f↓)
-
-infixr 5 _◂*ᵈ_
-_◂*ᵈ_ : Vec B e → (A →ᵈ B) → (A →ᵈ B)
-bs ◂*ᵈ mk f↓ = mk (bs ◂*↓ f↓)
-
 idᵈ : A →ᵈ A
 idᵈ = mk id↓
 
@@ -346,18 +293,14 @@ mk f↓ ⊗ᵈ mk g↓ = mk (f↓ ⊗↓ g↓)
 mapᵈ : (A → B) → (A →ᵈ B)
 mapᵈ f = mk (map↓ f)
 
-delay*ᵈ : Vec A d → A →ᵈ A
-delay*ᵈ as = as ◂*ᵈ idᵈ
-
-delayᵈ : A → A →ᵈ A
-delayᵈ a = a ◂ᵈ idᵈ
+bufferᵈ : Vec A d → A →ᵈ A
+bufferᵈ as = mk (buffer↓ as)
 
 open import Data.Bool hiding (_≤_; _<_)
 
 -- A stream function whose fixed point is a toggle flip-flop without enable.
 toggleᵈ′ : Bool →ᵈ Bool
-toggleᵈ′ = mapᵈ not ∘ᵈ delayᵈ false
-
+toggleᵈ′ = mapᵈ not ∘ᵈ bufferᵈ [ false ]
 
 -- Package seed type and value with seed-parametrized coalgebra to get a Mealy
 -- machine, denoting a causal stream function.
@@ -412,17 +355,11 @@ mk u f ⊗ᶜ mk v g = mk (u , v) λ ((a , b) , u , v) →
   in
     (c , d) , (s′ , t′)
 
-open import Data.Vec.Bounded as B using (Vec≤; fromVec) renaming (_,_ to _⊣_)
+-- Size-n FIFO
+bufferᶜ : Vec A n → A →ᶜ A
+bufferᶜ as₀ = mk as₀ λ (a , as) → uncons (as ∷ʳ a)
 
-infixr 5 _◂*ᶜ_
-_◂*ᶜ_ : Vec B n → (A →ᶜ B) → (A →ᶜ B)
-[] ◂*ᶜ f = f  -- Useful optimization? Proofs will be easier without.
-_◂*ᶜ_ {B = B} {n = n} {A} bs₀ (mk {S = S} s₀ h) =
-  -- Stash outputs in a bounded vector/FIFO
-  mk {S = Vec≤ B n × S} (fromVec bs₀ , s₀) λ
-    { (a , ([] ⊣ _) , s) → let b , s′ = h (a , s) in b , B.[] , s′
-    ; (a , (b ∷ bs ⊣ m<n) , s) → b , (bs ⊣ <⇒≤ m<n) , s
-    }
+open import Data.Vec.Bounded as B using (Vec≤; fromVec) renaming (_,_ to _⊣_)
 
 -- d-lagging automaton, denoting a d-lagging stream function
 infix 0 _→ᵃ_
@@ -436,7 +373,7 @@ record _→ᵃ_ (A B : Set) : Set₁ where
 open _→ᵃ_ using (Δ) public
 
 ⟦_⟧ : (A →ᵃ B) → (A →ᵈ B)
-⟦ mk bs f ⟧ = bs ◂*ᵈ ⟦ f ⟧ᶜ
+⟦ mk bs f ⟧ = bufferᵈ bs ∘ᵈ ⟦ f ⟧ᶜ
 
 -- Sequential composition
 infixr 9 _∘ᵃ_
@@ -465,6 +402,6 @@ mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
   let csˡ , csʳ = split (m⊓n≤m m n) cs
       dsˡ , dsʳ = split (m⊓n≤n m n) ds
   in
-    mk (v.zip csˡ dsˡ) ((csʳ ◂*ᶜ f) ⊗ᶜ (dsʳ ◂*ᶜ g))
+    mk (v.zip csˡ dsˡ) ((bufferᶜ csʳ ∘ᶜ f) ⊗ᶜ (bufferᶜ dsʳ ∘ᶜ g))
 
 -- TODO: Prove that ⟦_⟧ is functorial.
