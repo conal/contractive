@@ -71,11 +71,12 @@ _→ˢ_ : Set → Set → Set
 A →ˢ B = Stream A → Stream B
 
 infixr 5 _◃*_
-_◃*_ buffer : Vec A n → A →ˢ A
+_◃*_ : Vec A n → A →ˢ A
 []       ◃* u = u
 (x ∷ xs) ◃* u = x ◃ (xs ◃* u)
 
 -- alias
+buffer : Vec A n → A →ˢ A
 buffer = _◃*_
 
 splitAt : ∀ m (xs : Stream A) →
@@ -268,7 +269,7 @@ record _→ᵈ_ (A B : Set) : Set where
   constructor mk
   field
     {f} : A →ˢ B
-    {Δ} : ℕ  -- Lag: 0 (causal), 1 (contractive), etc
+    {Δ} : ℕ  -- lag: 0 (causal), 1 (contractive), etc
     f↓  : f ↓ Δ
 
 -- coerceᵈ : d ≡ e → (A →[ d ] B) → (A →[ e ] B)
@@ -301,6 +302,7 @@ open import Data.Bool hiding (_≤_; _<_)
 -- A stream function whose fixed point is a toggle flip-flop without enable.
 toggleᵈ′ : Bool →ᵈ Bool
 toggleᵈ′ = mapᵈ not ∘ᵈ bufferᵈ [ false ]
+
 
 -- Package seed type and value with seed-parametrized coalgebra to get a Mealy
 -- machine, denoting a causal stream function.
@@ -341,25 +343,23 @@ mapᶜ f = mk tt λ (a , tt) → f a , tt
 
 infixr 9 _∘ᶜ_
 _∘ᶜ_ : B →ᶜ C → A →ᶜ B → A →ᶜ C
-mk v g ∘ᶜ mk u f = mk (u , v) λ (a , (u , v)) →
-  let b , s′ = f (a , u)
-      c , t′ = g (b , v)
+mk t g ∘ᶜ mk s f = mk (s , t) λ (a , (s , t)) →
+  let b , s′ = f (a , s)
+      c , t′ = g (b , t)
   in
     c , (s′ , t′)
 
 infixr 7 _⊗ᶜ_
 _⊗ᶜ_ : (A →ᶜ C) → (B →ᶜ D) → (A × B →ᶜ C × D)
-mk u f ⊗ᶜ mk v g = mk (u , v) λ ((a , b) , u , v) →
-  let c , s′ = f (a , u)
-      d , t′ = g (b , v)
+mk s f ⊗ᶜ mk t g = mk (s , t) λ ((a , b) , s , t) →
+  let c , s′ = f (a , s)
+      d , t′ = g (b , t)
   in
     (c , d) , (s′ , t′)
 
 -- Size-n FIFO
 bufferᶜ : Vec A n → A →ᶜ A
 bufferᶜ as₀ = mk as₀ λ (a , as) → uncons (as ∷ʳ a)
-
-open import Data.Vec.Bounded as B using (Vec≤; fromVec) renaming (_,_ to _⊣_)
 
 -- d-lagging automaton, denoting a d-lagging stream function
 infix 0 _→ᵃ_
@@ -381,19 +381,11 @@ _∘ᵃ_ : (B →ᵃ C) → (A →ᵃ B) → (A →ᵃ C)
 mk cs g ∘ᵃ mk bs f = let g′ , cs′ = stepsᶜ (g , bs) in mk (cs ++ cs′) (g′ ∘ᶜ f)
 
 private
-  -- Parallel composition with equal lags
-  infixr 7 _⊗≡ᵃ_
-  _⊗≡ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) ⦃ _ : Δ f ≡ Δ g ⦄ → (A × B →ᵃ C × D)
-  (mk cs f ⊗≡ᵃ mk ds g) ⦃ refl ⦄ = mk (v.zip cs ds) (f ⊗ᶜ g)
-
-  -- This equality constraint precludes a monoidal category.
-
-private
   split : m ≤ n → Vec A n → Vec A m × Vec A (n ∸ m)
-  split {m} {n} m≤n xs =
-   let less-than-or-equal p = ≤⇒≤″ m≤n
-       xsˡ , xsʳ , _ = v.splitAt m (subst (Vec _) (sym p) xs)
-   in xsˡ , xsʳ
+  split m≤n xs =
+    let less-than-or-equal p = ≤⇒≤″ m≤n
+        xsˡ , xsʳ , _ = v.splitAt _ (subst (Vec _) (sym p) xs)
+    in xsˡ , xsʳ
 
 -- Parallel composition with arbitrary lags
 infixr 7 _⊗ᵃ_
@@ -403,5 +395,6 @@ mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
       dsˡ , dsʳ = split (m⊓n≤n m n) ds
   in
     mk (v.zip csˡ dsˡ) ((bufferᶜ csʳ ∘ᶜ f) ⊗ᶜ (bufferᶜ dsʳ ∘ᶜ g))
+
 
 -- TODO: Prove that ⟦_⟧ is functorial.
