@@ -2,9 +2,10 @@
 
 module StreamCat where
 
-open import Function using (_∘_; id; const; _$_)
+open import Function using (_∘_; id; const; _$_; case_of_; _∋_)
 open import Data.Unit using (⊤; tt)
 open import Data.Product as × hiding (map; zip)
+open import Data.Sum as ⊎ hiding (map)
 open import Data.Nat
 open import Data.Nat.Properties
 open import Data.Vec as v using (Vec; []; _∷_; _++_; _∷ʳ_; uncons)
@@ -28,7 +29,7 @@ open Stream public
 private variable
   A B C D : Set
   m n d e i : ℕ
-  u v : Stream A
+  u v w : Stream A
 
 infix 4 _≈_
 record _≈_ (u v : Stream A) : Set where
@@ -42,9 +43,21 @@ open _≈_ public
 
 -- Alternatively, `∀ i → u ! i ≡ v ! i`.
 
+-- _≈_ is an equivalence relation (and still will be if we generalize from
+-- equality to equivalence for elements).
+
 ≈-refl : u ≈ u
 head ≈-refl = refl
 tail ≈-refl = ≈-refl
+
+≈-sym : u ≈ v → v ≈ u
+head (≈-sym u≈v) =   sym (head u≈v)
+tail (≈-sym u≈v) = ≈-sym (tail u≈v)
+
+≈-trans : u ≈ v → v ≈ w → u ≈ w
+head (≈-trans u≈v v≈w) =   trans (head u≈v) (head v≈w)
+tail (≈-trans u≈v v≈w) = ≈-trans (tail u≈v) (tail v≈w)
+
 
 infixl 8 _!_
 _!_ : Stream A → ℕ → A
@@ -60,9 +73,22 @@ u ! suc i = tail u ! i
 -- !-cong′ u≈v  zero   = head u≈v
 -- !-cong′ u≈v (suc i) = !-cong′ (tail u≈v) i
 
+-- Inverse of !
+memo : (ℕ → A) → Stream A
+head (memo f) = f zero
+tail (memo f) = memo (f ∘ suc)
+
+memo-! : ∀ {f : ℕ → A} → memo f !_ ≗ f
+memo-!  zero   = refl
+memo-! (suc n) = memo-! n
+
 repeat : A → Stream A
 head (repeat a) = a
 tail (repeat a) = repeat a
+
+-- iterate : (A → A) → A → Stream A
+-- head (iterate f a) = a
+-- tail (iterate f a) = iterate f (f a)
 
 
 -- Stream functions
@@ -75,12 +101,14 @@ _◃*_ : Vec A n → A →ˢ A
 []       ◃* u = u
 (x ∷ xs) ◃* u = x ◃ (xs ◃* u)
 
+-- TODO: Perhaps rename _◃_ and _◃*_ to "_∷_" and "_++_".
+
 -- alias
 buffer : Vec A n → A →ˢ A
 buffer = _◃*_
 
 splitAt : ∀ m (xs : Stream A) →
-          ∃₂ λ (ys : Vec A m) (zs : Stream A) → xs ≈ ys ◃* zs
+  ∃₂ λ (ys : Vec A m) (zs : Stream A) → xs ≈ ys ◃* zs
 splitAt  zero   xs = [] , xs , ≈-refl
 splitAt (suc m) xs with ys , zs , p ← splitAt m (tail xs) =
   head xs ∷ ys , zs , refl ◃ p
@@ -120,6 +148,10 @@ zip-! (u , v) (suc i) = zip-! (tail u , tail v) i
 unzip : Stream (A × B) → Stream A × Stream B
 unzip zs = map proj₁ zs , map proj₂ zs
 
+diagonal : Stream A →ˢ A
+head (diagonal xss) = head (head xss)
+tail (diagonal xss) = diagonal (map tail xss)
+
 infixr 7 _⊗_
 _⊗_ : (A →ˢ C) → (B →ˢ D) → (A × B →ˢ C × D)
 f ⊗ g = zip ∘ ×.map f g ∘ unzip
@@ -131,11 +163,33 @@ u ≡[ n ] v = ∀ i → i < n → u ! i ≡ v ! i
 
 -- Alternatively, take n u ≡ take n v
 
+≡[]-refl : u ≡[ n ] u
+≡[]-refl i i<n = refl
+
+≡[]-sym : u ≡[ n ] v → v ≡[ n ] u
+≡[]-sym u~v i i<n = sym (u~v i i<n)
+
+≡[]-trans : u ≡[ n ] v → v ≡[ n ] w → u ≡[ n ] w
+≡[]-trans {n = n} u~v v~w i i<n = trans (u~v i i<n) (v~w i i<n)
+
 ≡[]-head : u ≡[ suc n ] v → head u ≡ head v
-≡[]-head u~v = u~v 0 (s≤s z≤n)
+≡[]-head u~v = u~v 0 0<1+n
 
 ≡[]-tail : u ≡[ suc n ] v → tail u ≡[ n ] tail v
 ≡[]-tail u~v i i<n = u~v (suc i) (s≤s i<n)
+
+≡[]⇒≈ : (∀ n → u ≡[ n ] v) → u ≈ v
+head (≡[]⇒≈ u~v) = u~v 1 0 0<1+n
+tail (≡[]⇒≈ u~v) = ≡[]⇒≈ (≡[]-tail ∘ u~v ∘ suc)
+
+unstep-≡[] : u ≡[ suc n ] v → u ≡[ n ] v
+unstep-≡[] u~v i i<n = u~v i (<-trans i<n (n<1+n _) )
+
+step-≡[] : u ≡[ n ] v → u ! n ≡ v ! n → u ≡[ suc n ] v
+step-≡[] u~v u!n≡v!n i (s≤s i≤n) = case m≤n⇒m<n∨m≡n i≤n of λ
+  { (inj₁ i<n ) → u~v i i<n
+  ; (inj₂ refl) → u!n≡v!n
+  }
 
 ≡[≤] : m ≤ n → u ≡[ n ] v → u ≡[ m ] v
 ≡[≤] m≤n s~ₙt i i<m = s~ₙt i (≤-trans i<m m≤n)
@@ -170,7 +224,7 @@ head-↓ {fˢ = fˢ} {d} f↓ {u} {v} =
     head (fˢ u)
   ≡⟨⟩
     fˢ u  ! 0
-  ≡⟨ f↓ {n = 0} (λ { i () }) 0 (s≤s z≤n) ⟩
+  ≡⟨ f↓ {n = 0} (λ i ()) 0 0<1+n ⟩
     fˢ v ! 0
   ≡⟨⟩
     head (fˢ v)
@@ -189,10 +243,10 @@ drop∘↓ {fˢ = fˢ} {d = d} e f↓ {n} {u} {v} u~v i i<d+n =
     (drop e ∘ fˢ) v ! i
   ∎
 
-tail↓ : fˢ ↓ suc d → tail ∘ fˢ ↓ d
-tail↓ = drop∘↓ 1
+tail∘↓ : fˢ ↓ suc d → tail ∘ fˢ ↓ d
+tail∘↓ = drop∘↓ 1
 
--- tail↓ f↓ u~v i i<d+n = f↓ u~v (suc i) (s≤s i<d+n)
+-- tail∘↓ f↓ u~v i i<d+n = f↓ u~v (suc i) (s≤s i<d+n)
 
 buffer↓ : ∀ (bs : Vec A d) → buffer bs ↓ d
 buffer↓ [] u~v = u~v
@@ -203,7 +257,7 @@ buffer↓ (b ∷ bs) u~v (suc i) (s≤s i<n+m) = buffer↓ bs u~v i i<n+m
 decomp↓ : ∀ e → fˢ ↓ e + d → ∀ {u} → fˢ ≈̂ buffer (take e (fˢ u)) ∘ drop e ∘ fˢ
 decomp↓ zero f↓ = ≈-refl
 head (decomp↓ (suc e) f↓) = head-↓ f↓
-tail (decomp↓ (suc e) f↓) = decomp↓ e (tail↓ f↓)
+tail (decomp↓ (suc e) f↓) = decomp↓ e (tail∘↓ f↓)
 
 -- Since fˢ ↓ e + d → fˢ ↓ e, we could eliminate d from decomp↓. Wait and see how
 -- uses of decomp↓ work out. I think drop∘↓ will appear.
@@ -341,6 +395,9 @@ stepsᶜ {A} {B} (mk {S = S} s h , as) = let bs , s′ = go (as , s) in mk s′ 
 mapᶜ : (A → B) → (A →ᶜ B)
 mapᶜ f = mk tt λ (a , tt) → f a , tt
 
+idᶜ : A →ᶜ A
+idᶜ = mapᶜ id
+
 infixr 9 _∘ᶜ_
 _∘ᶜ_ : B →ᶜ C → A →ᶜ B → A →ᶜ C
 mk t g ∘ᶜ mk s f = mk (s , t) λ (a , (s , t)) →
@@ -361,6 +418,9 @@ mk s f ⊗ᶜ mk t g = mk (s , t) λ ((a , b) , s , t) →
 bufferᶜ : Vec A n → A →ᶜ A
 bufferᶜ as₀ = mk as₀ λ (a , as) → uncons (as ∷ʳ a)
 
+-- bufferᶜ [] = idᶜ  -- optimization may complicate proofs
+-- bufferᶜ (a₀ ∷ as₀) = mk (a₀ ∷ as₀) λ (a , as) → uncons (as ∷ʳ a)
+
 -- d-lagging automaton, denoting a d-lagging stream function
 infix 0 _→ᵃ_
 record _→ᵃ_ (A B : Set) : Set₁ where
@@ -374,6 +434,7 @@ open _→ᵃ_ using (Δ) public
 
 ⟦_⟧ : (A →ᵃ B) → (A →ᵈ B)
 ⟦ mk bs f ⟧ = bufferᵈ bs ∘ᵈ ⟦ f ⟧ᶜ
+-- ⟦ mk bs f ⟧ = ⟦ bufferᶜ bs ∘ᶜ f ⟧ᶜ  -- equivalent
 
 -- Sequential composition
 infixr 9 _∘ᵃ_
@@ -387,7 +448,7 @@ private
         xsˡ , xsʳ , _ = v.splitAt _ (subst (Vec _) (sym p) xs)
     in xsˡ , xsʳ
 
--- Parallel composition with arbitrary lags
+-- Parallel composition (with arbitrary lags)
 infixr 7 _⊗ᵃ_
 _⊗ᵃ_ : (f : A →ᵃ C) (g : B →ᵃ D) → (A × B →ᵃ C × D)
 mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
@@ -397,4 +458,26 @@ mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
     mk (v.zip csˡ dsˡ) ((bufferᶜ csʳ ∘ᶜ f) ⊗ᶜ (bufferᶜ dsʳ ∘ᶜ g))
 
 
--- TODO: Prove that ⟦_⟧ is functorial.
+-- TODO: State and prove semantic homomorphisms.
+
+iterate : (A → A) → A → ℕ → A
+iterate f a₀  zero   = a₀
+iterate f a₀ (suc i) = f (iterate f a₀ i)
+
+module _  {f : A →ˢ A} (f↓ : contractive f) (anyA : Stream A) where
+
+  S : ℕ → Stream A
+  S  zero   = anyA
+  S (suc n) = f (S n)
+  
+  lemma₁ : S n ≡[ n ] S (suc n)
+  lemma₁ {suc _} = f↓ lemma₁
+
+  fix : Stream A                  -- the fixed point
+  fix = memo λ n → S (suc n) ! n
+
+  lemma₂ : fix ≡[ n ] S n
+  lemma₂ {suc n} = step-≡[] (≡[]-trans lemma₂ lemma₁) (memo-! n)
+  
+  is-fix : f fix ≈ fix
+  is-fix = ≡[]⇒≈ λ n → unstep-≡[] (≡[]-trans (f↓ lemma₂) (≡[]-sym lemma₂)) 
