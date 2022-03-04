@@ -463,7 +463,9 @@ mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
 
 -- TODO: State and prove semantic homomorphisms.
 
--- Fixed points
+-- Fixed point definition and proofs. Mirrors section 4 of "Representing
+-- Contractive Functions on Streams (Extended Version)"
+-- https://www.cs.nott.ac.uk/~pszgmh/bib.html#contractive .
 module _  {f : A →ˢ A} (f↓ : contractive f) (anyA : Stream A) where
 
   S : ℕ → Stream A
