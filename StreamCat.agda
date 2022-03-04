@@ -163,6 +163,9 @@ u ≡[ n ] v = ∀ i → i < n → u ! i ≡ v ! i
 
 -- Alternatively, take n u ≡ take n v
 
+-- _≡[ n ]_ is an equivalence relation (and still will be if we generalize from
+-- equality to equivalence for elements).
+
 ≡[]-refl : u ≡[ n ] u
 ≡[]-refl i i<n = refl
 
@@ -460,10 +463,7 @@ mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
 
 -- TODO: State and prove semantic homomorphisms.
 
-iterate : (A → A) → A → ℕ → A
-iterate f a₀  zero   = a₀
-iterate f a₀ (suc i) = f (iterate f a₀ i)
-
+-- Fixed points
 module _  {f : A →ˢ A} (f↓ : contractive f) (anyA : Stream A) where
 
   S : ℕ → Stream A
@@ -473,7 +473,7 @@ module _  {f : A →ˢ A} (f↓ : contractive f) (anyA : Stream A) where
   lemma₁ : S n ≡[ n ] S (suc n)
   lemma₁ {suc _} = f↓ lemma₁
 
-  fix : Stream A                  -- the fixed point
+  fix : Stream A
   fix = memo λ n → S (suc n) ! n
 
   lemma₂ : fix ≡[ n ] S n
