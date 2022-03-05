@@ -433,7 +433,7 @@ record _→ᵃ_ (A B : Set) : Set₁ where
     leading : Vec B Δ
     f : A →ᶜ B
 
-open _→ᵃ_ using (Δ) public
+open _→ᵃ_ using (Δ; leading) public
 
 ⟦_⟧ : (A →ᵃ B) → (A →ᵈ B)
 ⟦ mk bs f ⟧ = bufferᵈ bs ∘ᵈ ⟦ f ⟧ᶜ
@@ -466,7 +466,7 @@ mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
 -- Fixed point definition and proofs. Mirrors section 4 of "Representing
 -- Contractive Functions on Streams (Extended Version)"
 -- https://www.cs.nott.ac.uk/~pszgmh/bib.html#contractive .
-module _  {f : A →ˢ A} (f↓ : contractive f) (anyA : Stream A) where
+module FixedPoint {f : A →ˢ A} (f↓ : contractive f) (anyA : Stream A) where
 
   S : ℕ → Stream A
   S  zero   = anyA
@@ -483,3 +483,37 @@ module _  {f : A →ˢ A} (f↓ : contractive f) (anyA : Stream A) where
   
   is-fix : f fix ≈ fix
   is-fix = ≡[]⇒≈ λ n → unstep-≡[] (≡[]-trans (f↓ lemma₂) (≡[]-sym lemma₂)) 
+
+-- TODO: Prove uniqueness
+
+-- On A →ᵈ A with lag ≡ 1
+module FixedPointᵈ₁ ((mk {f = f} {e} f↓) : A →ᵈ A)
+         ⦃ e≡1 : e ≡ 1 ⦄ (anyA : Stream A) where
+  fix : Stream A
+  fix = FixedPoint.fix (subst (f ↓_) e≡1 f↓) anyA
+
+-- On A →ᵈ A with lag ≥ 1
+module FixedPointᵈ ((mk {f = f} {e} f↓) : A →ᵈ A)
+         ⦃ e≡1 : e ≡ suc d ⦄ (anyA : Stream A) where
+  fix : Stream A
+  fix = FixedPointᵈ₁.fix (mk (≤-↓ 0<1+n (subst (f ↓_) e≡1 f↓))) anyA
+
+-- On A →ᵃ A with lag ≡ 1
+module FixedPointᵃ₁ ((mk {e} xs (mk {S = S} s₀ h)) : A →ᵃ A)
+                    ⦃ e≡1 : e ≡ 1 ⦄ where
+
+  fix′ : A × S → Stream A
+  head (fix′ (a , s)) = a
+  tail (fix′ a,s) = fix′ (h a,s)
+
+  fix : Stream A
+  fix with [ x₀ ] ← subst (Vec A) e≡1 xs = fix′ (x₀ , s₀)
+
+-- On A →ᵃ A with lag ≥ 1
+module FixedPointᵃ ((mk {e} xs fᶜ) : A →ᵃ A) ⦃ e≡1+d : e ≡ suc d ⦄ where
+
+  fix : Stream A
+  fix with x₀ ∷ xs′ ← subst (Vec A) e≡1+d xs =
+    FixedPointᵃ₁.fix (mk [ x₀ ] (bufferᶜ xs′ ∘ᶜ fᶜ))
+
+-- TODO: Prove correctness, i.e., ⟦ FixedPointᵃ.fix f ⟧ ≈̂ FixedPoint.fix ⟦ f ⟧ .
