@@ -12,10 +12,9 @@ open import Functions 0ℓ
 -- A category of timed computation. Objects are time tries, and morphisms are
 -- computable functions between bit tries (easily generalized to arbitrary
 -- atomic types). The relationship to regular computable functions is a simple
--- forgetful functor that drop times. Later, we'll swap out functions
--- (denotation) for a compilable representation, again with a functor back to
--- semantics. As always, implementation correctness is
--- homomorphicity/functoriality.
+-- functor that forgets times. Later, we'll swap out functions (denotation) for
+-- a compilable representation, again with a functor back to semantics. As
+-- always, implementation correctness is semantic homomorphicity/functoriality.
 
 private variable a b c : Set
 
@@ -59,6 +58,14 @@ map-cong : ∀ {f g : a → b} → f ≗ g → map f u ≡ map g u
 map-cong {u = 1̇} f≗g = refl
 map-cong {u = İ x} f≗g = cong İ (f≗g x)
 map-cong {u = u ▿ v} f≗g = cong₂ _▿_ (map-cong f≗g) (map-cong f≗g)
+
+-- Two corollaries involving addition:
+
+map-0-+ : map (0 +_) u ≡ u
+map-0-+ = map-id
+
+map-+-+ : map ((d + e) +_) u ≡ map (d +_) (map (e +_) u)
+map-+-+ {d = d} {e} = trans (map-cong (+-assoc d e)) map-∘
 
 -- Objects: time tries
 record Obj : Set where
@@ -127,7 +134,7 @@ pause = mk id
 
 -- Progressively delayed objects
 Delays : 𝕋 → Obj → ℕ → Obj
-Delays  d   A zero = ⊤
+Delays d A zero = ⊤
 Delays d A (suc n) = A × Delay d (Delays d A n)
 
 -- Untimed pipelining (map)
@@ -154,25 +161,19 @@ mealy′ h (suc n) (s , (a , as)) = let b  , t = h (s , a )
                                   in (b , bs) , u
 
 mealy″ : ∀ {s} → (s × a → b × s) → ∀ n → s × V a n → V b n × s
-mealy″ h  zero   = unitorⁱˡ ∘ exl
+mealy″ h  zero   = unitorⁱˡ ∘ unitorᵉʳ
 mealy″ h (suc n) = assocˡ ∘ second (mealy″ h n) ∘ inAssocˡ h
 
 subT : ∀ {u v : Trie 𝕋 ρ} → v ≡ u → obj u ⇨ obj v
-subT eq = sub id (cong obj (sym eq))
-
-map-0-+ : map (0 +_) u ≡ u
-map-0-+ = map-id
-
-map-+-+ : map ((d + e) +_) u ≡ map (d +_) (map (e +_) u)
-map-+-+ {d = d} {e} = trans (map-cong (+-assoc d e)) map-∘
+subT refl = id
 
 mealy : (S × A ⇨ B × Delay d S) →
   ∀ n → S × Delays d A n ⇨ Delays d B n × Delay (n * d) S
-mealy h zero = ! ▵ subT map-0-+ ∘ exl
+mealy h zero = unitorⁱˡ ∘ subT map-0-+ ∘ exl
 mealy h (suc n) =
   assocˡ ∘ second (second (subT map-+-+) ∘ delay (mealy h n)) ∘ inAssocˡ h
 
--- pipe via mealy
+-- pipe as mealy with empty state
 pipeM : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipeM f n = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) n ∘ unitorⁱˡ
 
