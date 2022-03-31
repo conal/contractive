@@ -177,10 +177,15 @@ mealy h zero = unitorⁱˡ ∘ subT map-0-+ ∘ unitorᵉʳ
 mealy h (suc n) =
   assocˡ ∘ second (second (subT map-+-+) ∘ delay (mealy h n)) ∘ inAssocˡ h
 
--- pipe as mealy with empty state
+-- TODO: Generalize mealy to nonuniform timing (via prefix sums of timing).
+
+-- pipe as mealy with empty state (S = ⊤)
 pipeM : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipeM f n = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) n ∘ unitorⁱˡ
 
+-- fold via mealy
+fold : (B × A ⇨ Delay d B) → ∀ n → B × Delays d A n ⇨ Delay (n * d) B
+fold f n = exr ∘ mealy (dup ∘ f) n
 
 ---- Examples
 
