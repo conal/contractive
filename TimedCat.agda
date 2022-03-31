@@ -183,9 +183,12 @@ mealy h (suc n) =
 pipeM : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipeM f n = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) n ∘ unitorⁱˡ
 
--- fold via mealy
-fold : (B × A ⇨ Delay d B) → ∀ n → B × Delays d A n ⇨ Delay (n * d) B
-fold f n = exr ∘ mealy (dup ∘ f) n
+scan : (S × A ⇨ Delay d S) →
+  ∀ n → S × Delays d A n ⇨ Delays d (Delay d S) n × Delay (n * d) S
+scan f = mealy (dup ∘ f)
+
+fold : (S × A ⇨ Delay d S) → ∀ n → S × Delays d A n ⇨ Delay (n * d) S
+fold f n = exr ∘ scan f n
 
 ---- Examples
 
