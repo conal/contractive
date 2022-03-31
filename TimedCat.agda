@@ -173,7 +173,7 @@ mealy″ h (suc n) = assocˡ ∘ second (mealy″ h n) ∘ inAssocˡ h
 -- Timed
 mealy : (S × A ⇨ B × Delay d S) →
   ∀ n → S × Delays d A n ⇨ Delays d B n × Delay (n * d) S
-mealy h zero = unitorⁱˡ ∘ subT map-0-+ ∘ exl
+mealy h zero = unitorⁱˡ ∘ subT map-0-+ ∘ unitorᵉʳ
 mealy h (suc n) =
   assocˡ ∘ second (second (subT map-+-+) ∘ delay (mealy h n)) ∘ inAssocˡ h
 
