@@ -60,6 +60,7 @@ map-cong {u = 1̇} f≗g = refl
 map-cong {u = İ x} f≗g = cong İ (f≗g x)
 map-cong {u = u ▿ v} f≗g = cong₂ _▿_ (map-cong f≗g) (map-cong f≗g)
 
+-- Objects: time tries
 record Obj : Set where
   constructor obj
   field
@@ -83,6 +84,7 @@ Retime h (obj ts) = obj (map h ts)
 Delay : 𝕋 → Obj → Obj
 Delay d = Retime (d +_)
 
+-- Morphisms: functions on bit tries
 infix 0 _⇨_
 record _⇨_ (A B : Obj) : Set where
   constructor mk
@@ -120,12 +122,15 @@ delay : (A ⇨ B) → (Delay d A ⇨ Delay d B)
 delay = retime
 -- delay (mk f) = mk f
 
+pause : A ⇨ Delay d A
+pause = mk id
+
 -- Progressively delayed objects
 Delays : 𝕋 → Obj → ℕ → Obj
 Delays  d   A zero = ⊤
 Delays d A (suc n) = A × Delay d (Delays d A n)
 
--- Pipelining (a sort of staggered map and warm-up special case of mealy)
+-- Untimed pipelining (map)
 pipe′ : (a → b) → ∀ n → V a n → V b n
 pipe′ f zero tt = tt
 pipe′ f (suc n) (a , as) = f a , pipe′ f n as
@@ -134,8 +139,6 @@ pipe′ f (suc n) (a , as) = f a , pipe′ f n as
 pipe″ : (a → b) → ∀ n → V a n → V b n
 pipe″ f zero = id
 pipe″ f (suc n) = f ⊗ pipe″ f n
-
--- This general cartesian operation is called "mapⱽ" in denotational-hardware.
 
 -- Temporal version
 pipe : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
@@ -173,12 +176,13 @@ mealy h (suc n) =
 pipeM : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipeM f n = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) n ∘ unitorⁱˡ
 
+
+---- Examples
+
+
 -- Gate delay
 γ : 𝕋
 γ = 2
-
-pause : A ⇨ Delay d A
-pause = mk id
 
 ⊕γ ∧γ : 𝔹 × 𝔹 ⇨ Delay γ 𝔹
 ⊕γ = delay ⊕ ∘ pause
