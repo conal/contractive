@@ -9,6 +9,16 @@ open import Relation.Binary.PropositionalEquality as ≡
 open import Categorical.Raw renaming (xor to ⊕; Bool to 𝔹)
 open import Functions 0ℓ
 
+-- A category of timed computation. Objects are time tries, and morphisms are
+-- computable functions between bit tries (easily generalized to arbitrary
+-- atomic types). The relationship to regular computable functions is a simple
+-- forgetful functor that drop times. Later, we'll swap out functions
+-- (denotation) for a compilable representation, again with a functor back to
+-- semantics. As always, implementation correctness is
+-- homomorphicity/functoriality.
+
+private variable a b c : Set
+
 infixr 6 _`⊎_
 data Shape : Set where
   `⊥ : Shape
@@ -23,11 +33,9 @@ data Trie (a : Set) : Shape → Set where
   İ : a → Trie a `⊤
   _▿_ : Trie a ρ → Trie a σ → Trie a (ρ `⊎ σ)
 
-private variable a b c : Set
-
 private variable u v : Trie a ρ
 
-𝕋 : Set
+𝕋 : Set   -- "Time", which could be ℚ or ℝ
 𝕋 = ℕ
 
 private variable n : ℕ ; s t d e : 𝕋
@@ -113,9 +121,9 @@ delay = retime
 -- delay (mk f) = mk f
 
 -- Progressively delayed objects
-Delays : ℕ → 𝕋 → Obj → Obj
-Delays  zero   d A = ⊤
-Delays (suc n) d A = A × Delay d (Delays n d A)
+Delays : 𝕋 → Obj → ℕ → Obj
+Delays  d   A zero = ⊤
+Delays d A (suc n) = A × Delay d (Delays d A n)
 
 -- Pipelining (a sort of staggered map and warm-up special case of mealy)
 pipe′ : (a → b) → ∀ n → V a n → V b n
@@ -130,7 +138,7 @@ pipe″ f (suc n) = f ⊗ pipe″ f n
 -- This general cartesian operation is called "mapⱽ" in denotational-hardware.
 
 -- Temporal version
-pipe : (A ⇨ B) → ∀ n → Delays n d A ⇨ Delays n d B
+pipe : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipe f zero = id
 pipe f (suc n) = f ⊗ delay (pipe f n)
 
@@ -156,13 +164,13 @@ map-+-+ : map ((d + e) +_) u ≡ map (d +_) (map (e +_) u)
 map-+-+ {d = d} {e} = trans (map-cong (+-assoc d e)) map-∘
 
 mealy : (S × A ⇨ B × Delay d S) →
-  ∀ n → S × Delays n d A ⇨ Delays n d B × Delay (n * d) S
+  ∀ n → S × Delays d A n ⇨ Delays d B n × Delay (n * d) S
 mealy h zero = ! ▵ subT map-0-+ ∘ exl
 mealy h (suc n) =
   assocˡ ∘ second (second (subT map-+-+) ∘ delay (mealy h n)) ∘ inAssocˡ h
 
 -- pipe via mealy
-pipeM : (A ⇨ B) → ∀ n → Delays n d A ⇨ Delays n d B
+pipeM : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipeM f n = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) n ∘ unitorⁱˡ
 
 -- Gate delay
@@ -184,5 +192,5 @@ up₁ : 𝔹 × 𝔹 ⇨ Delay γ (𝔹 × 𝔹)
 up₁ = ⊕γ ▵ ∧γ
 
 -- Conditionally increment an n-bit natural number
-up : ∀ n → 𝔹 × Delays n γ 𝔹 ⇨ Delays n γ (Delay γ 𝔹) × Delay (n * γ) 𝔹
+up : ∀ n → 𝔹 × Delays γ 𝔹 n ⇨ Delays γ (Delay γ 𝔹) n × Delay (n * γ) 𝔹
 up = mealy up₁
