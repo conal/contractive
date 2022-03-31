@@ -67,7 +67,7 @@ map-0-+ = map-id
 map-+-+ : map ((d + e) +_) u ≡ map (d +_) (map (e +_) u)
 map-+-+ {d = d} {e} = trans (map-cong (+-assoc d e)) map-∘
 
--- Objects: time tries
+-- Objects are time tries
 record Obj : Set where
   constructor obj
   field
@@ -91,7 +91,12 @@ Retime h (obj ts) = obj (map h ts)
 Delay : 𝕋 → Obj → Obj
 Delay d = Retime (d +_)
 
--- Morphisms: functions on bit tries
+-- Progressively delayed objects
+Delays : 𝕋 → Obj → ℕ → Obj
+Delays d A zero = ⊤
+Delays d A (suc n) = A × Delay d (Delays d A n)
+
+-- Morphisms are functions on bit tries
 infix 0 _⇨_
 record _⇨_ (A B : Obj) : Set where
   constructor mk
@@ -132,10 +137,9 @@ delay = retime
 pause : A ⇨ Delay d A
 pause = mk id
 
--- Progressively delayed objects
-Delays : 𝕋 → Obj → ℕ → Obj
-Delays d A zero = ⊤
-Delays d A (suc n) = A × Delay d (Delays d A n)
+-- Apply timing identities
+subT : ∀ {u v : Trie 𝕋 ρ} → v ≡ u → obj u ⇨ obj v
+subT refl = id
 
 -- Untimed pipelining (map)
 pipe′ : (a → b) → ∀ n → V a n → V b n
@@ -152,21 +156,21 @@ pipe : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipe f zero = id
 pipe f (suc n) = f ⊗ delay (pipe f n)
 
--- Generalize pipe to mealy
+-- Generalize pipe to mealy by adding a running accumulator ("state"):
 
+-- Untimed
 mealy′ : ∀ {s} → (s × a → b × s) → ∀ n → s × V a n → V b n × s
 mealy′ h zero (s , tt) = tt , s
 mealy′ h (suc n) (s , (a , as)) = let b  , t = h (s , a )
                                       bs , u = mealy′ h n (t , as)
                                   in (b , bs) , u
 
+-- Categorical formulation
 mealy″ : ∀ {s} → (s × a → b × s) → ∀ n → s × V a n → V b n × s
 mealy″ h  zero   = unitorⁱˡ ∘ unitorᵉʳ
 mealy″ h (suc n) = assocˡ ∘ second (mealy″ h n) ∘ inAssocˡ h
 
-subT : ∀ {u v : Trie 𝕋 ρ} → v ≡ u → obj u ⇨ obj v
-subT refl = id
-
+-- Timed
 mealy : (S × A ⇨ B × Delay d S) →
   ∀ n → S × Delays d A n ⇨ Delays d B n × Delay (n * d) S
 mealy h zero = unitorⁱˡ ∘ subT map-0-+ ∘ exl
@@ -192,7 +196,7 @@ pipeM f n = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) n ∘ unit
 -- ⊕γ = pause ∘ ⊕
 -- ∧γ = pause ∘ ∧
 
--- Possibly increment. Carry-in on left and carry-out on right.
+-- Half adder with carry-out on right.
 up₁ : 𝔹 × 𝔹 ⇨ Delay γ (𝔹 × 𝔹)
 up₁ = ⊕γ ▵ ∧γ
 
