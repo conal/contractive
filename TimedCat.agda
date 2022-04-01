@@ -88,6 +88,18 @@ map-+∘+-comm : map (d +_) (map (e +_) u) ≡ map (e +_) (map (d +_) u)
 map-+∘+-comm {d = d} {e = e} =
   sym map-+-assoc ; map-+-comm {e = e} ; map-+-assoc
 
+zip : Trie a ρ × Trie b ρ → Trie (a × b) ρ
+zip (1̇ , 1̇) = 1̇
+zip (İ a , İ b) = İ (a , b)
+zip (as₁ ▿ as₂ , bs₁ ▿ bs₂) = zip (as₁ , bs₁) ▿ zip (as₂ , bs₂)
+
+zip⁻¹ : Trie (a × b) ρ → Trie a ρ × Trie b ρ
+zip⁻¹ 1̇ = 1̇ , 1̇
+zip⁻¹ (İ (a , b)) = İ a , İ b
+zip⁻¹ (as ▿ bs) = let as₁ , as₂ = zip⁻¹ as
+                      bs₁ , bs₂ = zip⁻¹ bs
+                  in as₁ ▿ bs₁ , as₂ ▿ bs₂
+
 -- Objects are time tries
 record Obj : Set where
   constructor obj
@@ -259,9 +271,6 @@ up = mealy up₁
 -- TODO: then consider generalizations from V to other tries.
 
 
----- Experiments in nested (higher-dimensional?) mealy machines
-
-
 -- Delays-Delay : ∀ n → Delays d (Delay e A) n ≡ Delay e (Delays d A n)
 Delays-Delay : ∀ n → Delays d (Delay e A) n ≡ Delay e (Delays d A n)
 Delays-Delay zero = refl
@@ -280,6 +289,29 @@ Delays-Delay {d} {e} {A} (suc n) =
     Delay e (Delays d A (suc n))
   ∎
  where open ≡-Reasoning
+
+zipD : ∀ n → Delays d A n × Delays d B n ⇨ Delays d (A × B) n
+zipD zero = unitorᵉˡ
+zipD (suc n) = second (delay (zipD n)) ∘ transpose
+
+zipD⁻¹ : ∀ n → Delays d (A × B) n ⇨ Delays d A n × Delays d B n
+zipD⁻¹ zero = unitorⁱˡ
+zipD⁻¹ (suc n) = transpose ∘ second (delay (zipD⁻¹ n))
+
+-- Note that zipD & zipD⁻¹ form an isomorphism
+
+
+---- Experiments in nested (higher-dimensional?) mealy machines
+
+mealy²₁ : (S × A ⇨ B × Delay d S) → ∀ m n →
+  S × Delays (m * d) (Delays d A m) n ⇨
+    Delays (m * d) (Delays d B m) n × Delay (n * (m * d)) S
+mealy²₁ h m n = mealy (mealy h m) n
+
+up² : ∀ m n →
+  𝔹 × Delays (m * γ) (Delays γ 𝔹 m) n ⇨
+    Delays (m * γ) (Delays γ (Delay γ 𝔹) m) n × Delay (n * (m * γ)) 𝔹
+up² = mealy²₁ up₁
 
 private module Foo (h : S × A ⇨ Delay e A × Delay d S) n where
 
@@ -300,23 +332,21 @@ private module Foo (h : S × A ⇨ Delay e A × Delay d S) n where
            Delay (n * d) (Delays e S m) × Delay (m * e) (Delays d A n)
   foo₅ m = first (sub≡ (Delays-Delay m)) ∘ foo₄ m
 
-foo : (h : S × A ⇨ Delay e A × Delay d S) → ∀ m n →
+mealy²₂ : (h : S × A ⇨ Delay e A × Delay d S) → ∀ m n →
   Delays d A m × Delays e S n ⇨
-     Delays e (Delay (m * d) S) n × Delay (n * e) (Delays d A m)
-foo h m n = mealy (second (sub≡ (Delays-Delay m)) ∘ swap ∘ mealy h m ∘ swap) n
+     Delay (m * d) (Delays e S n) × Delay (n * e) (Delays d A m)
+mealy²₂ h m n = first (sub≡ (Delays-Delay n)) ∘
+            mealy (second (sub≡ (Delays-Delay m)) ∘ swap ∘ mealy h m ∘ swap) n
 
 counter₁ : ∀ n → Delays γ 𝔹 n × Delays γ 𝔹 n ⇨
-  Delays γ (Delay (n * γ) 𝔹) n × Delay (n * γ) (Delays γ 𝔹 n)
-counter₁ n = foo up₁ n n
+  -- Delay (n * γ) (Delays γ 𝔹 n) × Delay (n * γ) (Delays γ 𝔹 n)
+  Delay (n * γ) (Delays γ 𝔹 n × Delays γ 𝔹 n)
+counter₁ n = mealy²₂ up₁ n n
 
 -- counter₁ takes an initial count and carries-in and yields carries-out and a
 -- final count.
 
-counter₂ : ∀ n → Delays γ 𝔹 n × Delays γ 𝔹 n ⇨
-  Delays γ (Delay (n * γ) 𝔹) n × Delays γ (Delay (n * γ) 𝔹) n
-counter₂ n = second (sub≡ (sym (Delays-Delay n))) ∘ counter₁ n
+-- A prettier formulation:
+counter₂ : ∀ n → Delays γ (𝔹 × 𝔹) n ⇨ Delay (n * γ) (Delays γ (𝔹 × 𝔹) n)
+counter₂ n = delay (zipD n) ∘ counter₁ n ∘ zipD⁻¹ n
 
--- counter₃ : ∀ n → Delays γ (𝔹 × 𝔹) n ⇨ Delay (n * γ) (Delays γ (𝔹 × 𝔹) n)
--- counter₃ n = {!!} ∘ counter₂ n ∘ {!!}
-
--- TODO: Decide on ordering of Delays and Delay
