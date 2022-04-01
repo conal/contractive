@@ -338,15 +338,9 @@ mealy²₂ : (h : S × A ⇨ Delay e A × Delay d S) → ∀ m n →
 mealy²₂ h m n = first (sub≡ (Delays-Delay n)) ∘
             mealy (second (sub≡ (Delays-Delay m)) ∘ swap ∘ mealy h m ∘ swap) n
 
-counter₁ : ∀ n → Delays γ 𝔹 n × Delays γ 𝔹 n ⇨
-  -- Delay (n * γ) (Delays γ 𝔹 n) × Delay (n * γ) (Delays γ 𝔹 n)
-  Delay (n * γ) (Delays γ 𝔹 n × Delays γ 𝔹 n)
-counter₁ n = mealy²₂ up₁ n n
+counter : ∀ m n → Delays γ 𝔹 m × Delays γ 𝔹 n ⇨
+  Delay (m * γ) (Delays γ 𝔹 n) × Delay (n * γ) (Delays γ 𝔹 m)
+counter = mealy²₂ up₁
 
--- counter₁ takes an initial count and carries-in and yields carries-out and a
--- final count.
-
--- A prettier formulation:
-counter₂ : ∀ n → Delays γ (𝔹 × 𝔹) n ⇨ Delay (n * γ) (Delays γ (𝔹 × 𝔹) n)
-counter₂ n = delay (zipD n) ∘ counter₁ n ∘ zipD⁻¹ n
-
+-- counter takes an m-bit initial count and n carries-in and yields n
+-- carries-out and a final m-bit count. Note the lovely symmetry in the type.
