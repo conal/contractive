@@ -1,8 +1,10 @@
 module TimedCat where
 
 open import Level using (0ℓ)
+open import Data.Empty.Polymorphic
+open import Data.Sum using (_⊎_)
 open import Data.Nat
-open import Data.Nat.Properties using (+-assoc)
+open import Data.Nat.Properties
 open import Data.Product using (_,_)
 open import Relation.Binary.PropositionalEquality as ≡
 
@@ -16,7 +18,12 @@ open import Functions 0ℓ
 -- a compilable representation, again with a functor back to semantics. As
 -- always, implementation correctness is semantic homomorphicity/functoriality.
 
+
 private variable a b c : Set
+
+infixr 1 _;_   -- unicode
+_;_ : ∀ {ℓ} {a : Set ℓ} {x y z : a} → x ≡ y → y ≡ z → x ≡ z
+_;_ = trans
 
 infixr 6 _`⊎_
 data Shape : Set where
@@ -25,6 +32,13 @@ data Shape : Set where
   _`⊎_  : Shape → Shape → Shape
 
 private variable ρ σ : Shape
+
+⟦_⟧ : Shape → Set
+⟦ `⊥ ⟧ = ⊥
+⟦ `⊤ ⟧ = ⊤
+⟦ ρ `⊎ σ ⟧ = ⟦ ρ ⟧ ⊎ ⟦ σ ⟧
+
+-- Trie a ρ ≅ ⟦ ρ ⟧ → a
 
 infixr 6 _▿_
 data Trie (a : Set) : Shape → Set where
@@ -37,7 +51,7 @@ private variable u v : Trie a ρ
 𝕋 : Set   -- "Time", which could be ℚ or ℝ
 𝕋 = ℕ
 
-private variable n : ℕ ; s t d e : 𝕋
+private variable m n : ℕ ; s t d e : 𝕋
 
 map : (a → b) → Trie a ρ → Trie b ρ
 map f 1̇ = 1̇
@@ -59,13 +73,20 @@ map-cong {u = 1̇} f≗g = refl
 map-cong {u = İ x} f≗g = cong İ (f≗g x)
 map-cong {u = u ▿ v} f≗g = cong₂ _▿_ (map-cong f≗g) (map-cong f≗g)
 
--- Two corollaries involving addition:
+-- Corollaries (map ∘ _+_ is a monoid homomorphism):
 
-map-0-+ : map (0 +_) u ≡ u
-map-0-+ = map-id
+map-+-identityˡ : map (0 +_) u ≡ u
+map-+-identityˡ = map-id
 
-map-+-+ : map ((d + e) +_) u ≡ map (d +_) (map (e +_) u)
-map-+-+ {d = d} {e} = trans (map-cong (+-assoc d e)) map-∘
+map-+-assoc : map ((d + e) +_) u ≡ map (d +_) (map (e +_) u)
+map-+-assoc {d = d} {e} = map-cong (+-assoc d e) ; map-∘
+
+map-+-comm : map ((d + e) +_) u ≡ map ((e + d) +_) u
+map-+-comm {d = d} {e} = map-cong λ x → cong (_+ x) (+-comm d e)
+
+map-+∘+-comm : map (d +_) (map (e +_) u) ≡ map (e +_) (map (d +_) u)
+map-+∘+-comm {d = d} {e = e} =
+  sym map-+-assoc ; map-+-comm {e = e} ; map-+-assoc
 
 -- Objects are time tries
 record Obj : Set where
@@ -140,6 +161,10 @@ pause = mk id
 -- Apply timing identities
 subT : ∀ {u v : Trie 𝕋 ρ} → v ≡ u → obj u ⇨ obj v
 subT refl = id
+-- subT v≡u = sub id (cong obj (sym v≡u))
+
+-- V a zero = ⊤
+-- V a (suc n) = a × V a n
 
 -- Untimed pipelining (map)
 pipe′ : (a → b) → ∀ n → V a n → V b n
@@ -173,9 +198,19 @@ mealy″ h (suc n) = assocˡ ∘ second (mealy″ h n) ∘ inAssocˡ h
 -- Timed
 mealy : (S × A ⇨ B × Delay d S) →
   ∀ n → S × Delays d A n ⇨ Delays d B n × Delay (n * d) S
-mealy h zero = unitorⁱˡ ∘ subT map-0-+ ∘ unitorᵉʳ
+mealy h zero = unitorⁱˡ ∘ subT map-+-identityˡ ∘ unitorᵉʳ
 mealy h (suc n) =
-  assocˡ ∘ second (second (subT map-+-+) ∘ delay (mealy h n)) ∘ inAssocˡ h
+  assocˡ ∘ second (second (subT map-+-assoc) ∘ delay (mealy h n)) ∘ inAssocˡ h
+
+-- The map-+-identityˡ lemma reconciles Delay (zero * d) S with S.
+
+-- The map-+-assoc lemma reconciles Delay (suc n * d) (i.e., Delay (d + n * d)) with
+-- Delay (d (Delay (n * d))).
+
+-- The shape of morphism coming out of mealy matches the morphism shape coming
+-- in, and thus mealy can be applied repeatedly, e.g., mealy (mealy (mealy h)).
+
+-- More usefully, invert roles of input and state: mealy (swap ∘ mealy ∘ swap).
 
 -- TODO: Generalize mealy to nonuniform timing (via prefix sums of timing).
 
@@ -183,12 +218,15 @@ mealy h (suc n) =
 pipeM : (A ⇨ B) → ∀ n → Delays d A n ⇨ Delays d B n
 pipeM f n = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) n ∘ unitorⁱˡ
 
-scan : (S × A ⇨ Delay d S) →
-  ∀ n → S × Delays d A n ⇨ Delays d (Delay d S) n × Delay (n * d) S
+scan : (B × A ⇨ Delay d B) →
+  ∀ n → B × Delays d A n ⇨ Delays d (Delay d B) n × Delay (n * d) B
 scan f = mealy (dup ∘ f)
 
-fold : (S × A ⇨ Delay d S) → ∀ n → S × Delays d A n ⇨ Delay (n * d) S
+fold : (B × A ⇨ Delay d B) → ∀ n → B × Delays d A n ⇨ Delay (n * d) B
 fold f n = exr ∘ scan f n
+
+-- TODO: Consistent naming scheme. Maybe mapD, scanD, foldD. Later, however,
+-- we'll want *nonsequential* timed variants.
 
 ---- Examples
 
@@ -211,3 +249,74 @@ up₁ = ⊕γ ▵ ∧γ
 -- Conditionally increment an n-bit natural number
 up : ∀ n → 𝔹 × Delays γ 𝔹 n ⇨ Delays γ (Delay γ 𝔹) n × Delay (n * γ) 𝔹
 up = mealy up₁
+
+-- TODO: Try replacing V a n with Trie a (𝔽 n), where ⟦ 𝔽 n ⟧ ≅ Fin n.
+
+𝔽 : ℕ → Shape
+𝔽 zero = `⊥
+𝔽 (suc n) = `⊤ `⊎ 𝔽 n
+
+-- TODO: then consider generalizations from V to other tries.
+
+
+---- Experiments in nested (higher-dimensional?) mealy machines
+
+
+-- Delays-Delay : ∀ n → Delays d (Delay e A) n ≡ Delay e (Delays d A n)
+Delays-Delay : ∀ n → Delays d (Delay e A) n ≡ Delay e (Delays d A n)
+Delays-Delay zero = refl
+Delays-Delay {d} {e} {A} (suc n) =
+  begin
+    Delays d (Delay e A) (suc n)
+  ≡⟨⟩
+    (Delay e A × Delay d (Delays d (Delay e A) n))
+  ≡⟨ cong (λ ● → Delay e A × Delay d ●) (Delays-Delay n) ⟩
+    (Delay e A × Delay d (Delay e (Delays d A n)))
+  ≡⟨ cong (Delay e A ×_) (cong obj map-+∘+-comm) ⟩
+    (Delay e A × Delay e (Delay d (Delays d A n)))
+  ≡⟨⟩
+    Delay e (A × Delay d (Delays d A n))
+  ≡⟨⟩
+    Delay e (Delays d A (suc n))
+  ∎
+ where open ≡-Reasoning
+
+private module Foo (h : S × A ⇨ Delay e A × Delay d S) n where
+
+  foo₁ : S × Delays d A n ⇨ Delays d (Delay e A) n × Delay (n * d) S
+  foo₁ = mealy h n
+
+  foo₂ : Delays d A n × S ⇨ Delay (n * d) S × Delays d (Delay e A) n
+  foo₂ = swap ∘ mealy h n ∘ swap
+
+  foo₃ : Delays d A n × S ⇨ Delay (n * d) S × Delay e (Delays d A n)
+  foo₃ = second (sub≡ (Delays-Delay n)) ∘ swap ∘ mealy h n ∘ swap
+
+  foo₄ : ∀ m → Delays d A n × Delays e S m ⇨
+           Delays e (Delay (n * d) S) m × Delay (m * e) (Delays d A n)
+  foo₄ = mealy foo₃
+
+  foo₅ : ∀ m → Delays d A n × Delays e S m ⇨
+           Delay (n * d) (Delays e S m) × Delay (m * e) (Delays d A n)
+  foo₅ m = first (sub≡ (Delays-Delay m)) ∘ foo₄ m
+
+foo : (h : S × A ⇨ Delay e A × Delay d S) → ∀ m n →
+  Delays d A m × Delays e S n ⇨
+     Delays e (Delay (m * d) S) n × Delay (n * e) (Delays d A m)
+foo h m n = mealy (second (sub≡ (Delays-Delay m)) ∘ swap ∘ mealy h m ∘ swap) n
+
+counter₁ : ∀ n → Delays γ 𝔹 n × Delays γ 𝔹 n ⇨
+  Delays γ (Delay (n * γ) 𝔹) n × Delay (n * γ) (Delays γ 𝔹 n)
+counter₁ n = foo up₁ n n
+
+-- counter₁ takes an initial count and carries-in and yields carries-out and a
+-- final count.
+
+counter₂ : ∀ n → Delays γ 𝔹 n × Delays γ 𝔹 n ⇨
+  Delays γ (Delay (n * γ) 𝔹) n × Delays γ (Delay (n * γ) 𝔹) n
+counter₂ n = second (sub≡ (sym (Delays-Delay n))) ∘ counter₁ n
+
+-- counter₃ : ∀ n → Delays γ (𝔹 × 𝔹) n ⇨ Delay (n * γ) (Delays γ (𝔹 × 𝔹) n)
+-- counter₃ n = {!!} ∘ counter₂ n ∘ {!!}
+
+-- TODO: Decide on ordering of Delays and Delay
