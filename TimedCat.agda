@@ -48,7 +48,9 @@ data Trie (a : Set) : Shape → Set where
 
 private variable u v : Trie a ρ
 
-𝕋 : Set   -- "Time", which could be ℚ or ℝ
+-- "Time", which could be ℚ, ℝ, or an arbitrary commutative monoid such as
+-- spacetime.
+𝕋 : Set
 𝕋 = ℕ
 
 private variable m n : ℕ ; s t d e : 𝕋
@@ -88,6 +90,11 @@ map-+∘+-comm : map (d +_) (map (e +_) u) ≡ map (e +_) (map (d +_) u)
 map-+∘+-comm {d = d} {e = e} =
   sym map-+-assoc ; map-+-comm {e = e} ; map-+-assoc
 
+-- The map-+-identityˡ lemma reconciles Delay (zero * d) S with S.
+
+-- The map-+-assoc lemma reconciles Delay (suc n * d) (i.e., Delay (d + n * d)) with
+-- Delay (d (Delay (n * d))).
+
 zip : Trie a ρ × Trie b ρ → Trie (a × b) ρ
 zip (1̇ , 1̇) = 1̇
 zip (İ a , İ b) = İ (a , b)
@@ -99,6 +106,7 @@ zip⁻¹ (İ (a , b)) = İ a , İ b
 zip⁻¹ (as ▿ bs) = let as₁ , as₂ = zip⁻¹ as
                       bs₁ , bs₂ = zip⁻¹ bs
                   in as₁ ▿ bs₁ , as₂ ▿ bs₂
+
 
 -- Objects are time tries
 record Obj : Set where
@@ -113,7 +121,7 @@ private variable A B C D S : Obj
 module timed-obj-instances where instance
 
   products : Products Obj
-  products = record { ⊤ = obj 1̇ ; _×_ = λ { (obj u) (obj v) → obj (u ▿ v) } }
+  products = record { ⊤ = obj 1̇ ; _×_ = λ (obj u) (obj v) → obj (u ▿ v) }
 
   boolean : Boolean Obj
   boolean = record { Bool = obj (İ 0) }
@@ -128,6 +136,7 @@ Delay d = Retime (d +_)
 Delays : 𝕋 → Obj → ℕ → Obj
 Delays d A zero = ⊤
 Delays d A (suc n) = A × Delay d (Delays d A n)
+
 
 -- Morphisms are functions on bit tries
 infix 0 _⇨_
@@ -214,11 +223,6 @@ mealy h zero = unitorⁱˡ ∘ subT map-+-identityˡ ∘ unitorᵉʳ
 mealy h (suc n) =
   assocˡ ∘ second (second (subT map-+-assoc) ∘ delay (mealy h n)) ∘ inAssocˡ h
 
--- The map-+-identityˡ lemma reconciles Delay (zero * d) S with S.
-
--- The map-+-assoc lemma reconciles Delay (suc n * d) (i.e., Delay (d + n * d)) with
--- Delay (d (Delay (n * d))).
-
 -- The shape of morphism coming out of mealy matches the morphism shape coming
 -- in, and thus mealy can be applied repeatedly, e.g., mealy (mealy (mealy h)).
 
@@ -268,7 +272,7 @@ up = mealy up₁
 𝔽 zero = `⊥
 𝔽 (suc n) = `⊤ `⊎ 𝔽 n
 
--- TODO: then consider generalizations from V to other tries.
+-- TODO: consider generalizations from V to other tries.
 
 
 -- Delays-Delay : ∀ n → Delays d (Delay e A) n ≡ Delay e (Delays d A n)
@@ -344,3 +348,7 @@ counter = mealy²₂ up₁
 
 -- counter takes an m-bit initial count and n carries-in and yields n
 -- carries-out and a final m-bit count. Note the lovely symmetry in the type.
+
+-- TODO: Write up notes, including untimed versions of mealy²₁ and mealy²₂ (and
+-- choose better names).
+
