@@ -327,6 +327,7 @@ zipD⁻¹ (ρ `⊎ σ) = transpose ∘ (zipD⁻¹ ρ ⊗ delay (zipD⁻¹ σ))
 
 -- Note that zipD & zipD⁻¹ form an isomorphism
 
+
 ---- Experiments in nested (higher-dimensional?) mealy machines
 
 mealy²₁ : ∀ (h : S × A ⇨ B × Delay d S) ρ σ →
@@ -368,7 +369,7 @@ counter : ∀ ρ σ → Delays γ 𝔹 ρ × Delays γ 𝔹 σ ⇨
   Delay (ρ *̂ γ) (Delays γ 𝔹 σ) × Delay (σ *̂ γ) (Delays γ 𝔹 ρ)
 counter = mealy²₂ up₁
 
--- counter takes an ρ-bit initial count and σ carries-in and yields σ
+-- counter takes a ρ-bit initial count and σ carries-in and yields σ
 -- carries-out and a final ρ-bit count. Note the lovely symmetry in the type.
 
 -- TODO: Write up notes, including untimed versions of mealy²₁ and mealy²₂ (and
