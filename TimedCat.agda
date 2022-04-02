@@ -67,55 +67,55 @@ private variable u v : Trie a ρ
 
 private variable m n : ℕ ; s t d e : 𝕋
 
-map : ∀ ρ → (a → b) → Trie a ρ → Trie b ρ
-map `⊥ f = !
-map `⊤ f = f
-map (ρ `⊎ σ) f = map ρ f ⊗ map σ f
+map : (a → b) → ∀ ρ → Trie a ρ → Trie b ρ
+map f `⊥ = !
+map f `⊤ = f
+map f (ρ `⊎ σ) = map f ρ ⊗ map f σ
 
-map-id : ∀ ρ {u : Trie a ρ} → map ρ id u ≡ u
+map-id : ∀ ρ {u : Trie a ρ} → map id ρ u ≡ u
 map-id `⊥ = refl
 map-id `⊤ = refl
 map-id (ρ `⊎ σ) = cong₂ _,_ (map-id ρ) (map-id σ)
 
-map-∘ : ∀ ρ {f : a → b} {g : b → c} {u : Trie a ρ} → map ρ (g ∘ f) u ≡ map ρ g (map ρ f u)
+map-∘ : ∀ ρ {f : a → b} {g : b → c} {u : Trie a ρ} → map (g ∘ f) ρ u ≡ map g ρ (map f ρ u)
 map-∘ `⊥ = refl
 map-∘ `⊤ = refl
 map-∘ (ρ `⊎ σ) = cong₂ _,_ (map-∘ ρ) (map-∘ σ)
 
-map-cong : ∀ ρ {f g : a → b} {u : Trie a ρ} → f ≗ g → map ρ f u ≡ map ρ g u
-map-cong `⊥ f≗g = refl
-map-cong `⊤ f≗g = f≗g _
-map-cong (ρ `⊎ σ) f≗g = cong₂ _,_ (map-cong ρ f≗g) (map-cong σ f≗g)
+map-cong : ∀ {f g : a → b} → f ≗ g → ∀ ρ {u : Trie a ρ} → map f ρ u ≡ map g ρ u
+map-cong f≗g `⊥ = refl
+map-cong f≗g `⊤ = f≗g _
+map-cong f≗g (ρ `⊎ σ) = cong₂ _,_ (map-cong f≗g ρ) (map-cong f≗g σ)
 
 -- Corollaries
 
-map-+-identityˡ : ∀ ρ {u : Trie 𝕋 ρ} → map ρ (0 +_) u ≡ u
+map-+-identityˡ : ∀ ρ {u : Trie 𝕋 ρ} → map (0 +_) ρ u ≡ u
 map-+-identityˡ = map-id
 
-map-+-identityʳ : ∀ ρ {u : Trie 𝕋 ρ} → map ρ (_+ 0) u ≡ u
-map-+-identityʳ ρ = map-cong ρ +-identityʳ ; map-id ρ
+map-+-identityʳ : ∀ ρ {u : Trie 𝕋 ρ} → map (_+ 0) ρ u ≡ u
+map-+-identityʳ ρ = map-cong +-identityʳ ρ ; map-id ρ
 
-map-+-1* : ∀ ρ {u : Trie 𝕋 ρ} → map ρ (1 * d +_) u ≡ map ρ (d +_) u
-map-+-1* {d} ρ = map-cong ρ λ x → cong (_+ x) (+-identityʳ d)
+map-+-1* : ∀ ρ {u : Trie 𝕋 ρ} → map (1 * d +_) ρ u ≡ map (d +_) ρ u
+map-+-1* {d} = map-cong (λ x → cong (_+ x) (+-identityʳ d))
 
 map-+-assoc : ∀ ρ {u : Trie 𝕋 ρ} →
-  map ρ ((d + e) +_) u ≡ map ρ (d +_) (map ρ (e +_) u)
-map-+-assoc {d = d} {e} ρ = map-cong ρ (+-assoc d e) ; map-∘ ρ
+  map ((d + e) +_) ρ u ≡ map (d +_) ρ (map (e +_) ρ u)
+map-+-assoc {d = d} {e} ρ = map-cong (+-assoc d e) ρ ; map-∘ ρ
 
-map-+-comm : ∀ ρ {u : Trie 𝕋 ρ} → map ρ ((d + e) +_) u ≡ map ρ ((e + d) +_) u
-map-+-comm {d = d} {e} ρ = map-cong ρ λ x → cong (_+ x) (+-comm d e)
+map-+-comm : ∀ ρ {u : Trie 𝕋 ρ} → map ((d + e) +_) ρ u ≡ map ((e + d) +_) ρ u
+map-+-comm {d = d} {e} = map-cong (λ x → cong (_+ x) (+-comm d e))
 
 map-+∘+-comm : ∀ ρ {u : Trie 𝕋 ρ} →
-  map ρ (d +_) (map ρ (e +_) u) ≡ map ρ (e +_) (map ρ (d +_) u)
+  map (d +_) ρ (map (e +_) ρ u) ≡ map (e +_) ρ (map (d +_) ρ u)
 map-+∘+-comm {d = d} {e = e} ρ =
   sym (map-+-assoc ρ) ; map-+-comm {e = e} ρ ; map-+-assoc ρ
 
 map-+-distribʳ : ∀ ρ {u : Trie 𝕋 ρ} → ∀ m →
-  map ρ ((m + n) * d +_) u ≡ map ρ (m * d + n * d +_) u
-map-+-distribʳ ρ m = map-cong ρ λ x → cong (_+ x) (*-distribʳ-+ _ m _)
+  map ((m + n) * d +_) ρ u ≡ map (m * d + n * d +_) ρ u
+map-+-distribʳ ρ m = map-cong (λ x → cong (_+ x) (*-distribʳ-+ _ m _)) ρ
 
 map-+-distribʳ-assoc : ∀ ρ {u : Trie 𝕋 ρ} → ∀ m →
-  map ρ ((m + n) * d +_) u ≡ map ρ (m * d +_) (map ρ (n * d +_) u)
+  map ((m + n) * d +_) ρ u ≡ map (m * d +_) ρ (map (n * d +_) ρ u)
 map-+-distribʳ-assoc ρ m = map-+-distribʳ ρ m ; map-+-assoc ρ
 
 zip : ∀ ρ → Trie a ρ × Trie b ρ → Trie (a × b) ρ
@@ -151,7 +151,7 @@ module timed-obj-instances where instance
   boolean = record { Bool = obj `⊤ 0 }
 
 Retime : (h : 𝕋 → 𝕋) → Obj → Obj
-Retime h (obj ρ ts) = obj ρ (map ρ h ts)
+Retime h (obj ρ ts) = obj ρ (map h ρ ts)
 
 Delay : 𝕋 → Obj → Obj
 Delay d = Retime (d +_)
@@ -216,39 +216,39 @@ subT : ∀ {u v : Trie 𝕋 ρ} → v ≡ u → obj ρ u ⇨ obj ρ v
 subT refl = id
 -- subT v≡u = sub id (cong obj (sym v≡u))
 
--- Temporal version
-mapT : ∀ ρ → (A ⇨ B) → Delays d A ρ ⇨ Delays d B ρ
-mapT `⊥ f = !
-mapT `⊤ f = f
-mapT (ρ `⊎ σ) f = mapT ρ f ⊗ delay (mapT σ f)
+-- Temporal version. First version.
+mapT₁ : ∀ (f : A ⇨ B) ρ → Delays d A ρ ⇨ Delays d B ρ
+mapT₁ f `⊥ = !
+mapT₁ f `⊤ = f
+mapT₁ f (ρ `⊎ σ) = mapT₁ f ρ ⊗ delay (mapT₁ f σ)
 
 -- Generalize mapT to mealyT by adding a running accumulator ("state"):
 
--- -- Untimed
-mealy′ : ∀ {s} ρ → (s × a → b × s) → s × Trie a ρ → Trie b ρ × s
-mealy′ `⊥ h (x , tt) = tt , x
-mealy′ `⊤ h (s , x) = h (s , x)
-mealy′ (ρ `⊎ σ) h (s , (xs₁ , xs₂)) =
-  let ys₁ , t₁ = mealy′ ρ h (s  , xs₁)
-      ys₂ , t₂ = mealy′ σ h (t₁ , xs₂)
+-- Untimed
+mealy′ : ∀ {s} (h : s × a → b × s) ρ → s × Trie a ρ → Trie b ρ × s
+mealy′ h `⊥ (x , tt) = tt , x
+mealy′ h `⊤ (s , x) = h (s , x)
+mealy′ h (ρ `⊎ σ) (s , (xs₁ , xs₂)) =
+  let ys₁ , t₁ = mealy′ h ρ (s  , xs₁)
+      ys₂ , t₂ = mealy′ h σ (t₁ , xs₂)
   in (ys₁ , ys₂) , t₂
 
 -- Categorical formulation
-mealy″ : ∀ {s} ρ → (s × a → b × s) → s × Trie a ρ → Trie b ρ × s
-mealy″ `⊥ h = unitorⁱˡ ∘ unitorᵉʳ -- swap
-mealy″ `⊤ h = h
-mealy″ (ρ `⊎ σ) h = assocˡ ∘ second (mealy″ σ h) ∘ inAssocˡ (mealy″ ρ h)
+mealy″ : ∀ {s} (h : s × a → b × s) ρ → s × Trie a ρ → Trie b ρ × s
+mealy″ h `⊥ = unitorⁱˡ ∘ unitorᵉʳ -- swap
+mealy″ h `⊤ = h
+mealy″ h (ρ `⊎ σ) = assocˡ ∘ second (mealy″ h σ) ∘ inAssocˡ (mealy″ h ρ)
 
 -- Categorical formulation
-mealy : ∀ ρ → (S × A ⇨ B × Delay d S) →
+mealy : ∀ (h : S × A ⇨ B × Delay d S) ρ →
   S × Delays d A ρ ⇨ Delays d B ρ × Delay (ρ *̂ d) S
-mealy {S} `⊥ h = unitorⁱˡ ∘ subT (map-+-identityˡ (shape S)) ∘ unitorᵉʳ
-mealy {S} `⊤ h = second (subT (map-+-1* (shape S))) ∘ h
-mealy {S} (ρ `⊎ σ) h =
+mealy {S} h `⊥ = unitorⁱˡ ∘ subT (map-+-identityˡ (shape S)) ∘ unitorᵉʳ
+mealy {S} h `⊤ = second (subT (map-+-1* (shape S))) ∘ h
+mealy {S} h (ρ `⊎ σ) =
   assocˡ ∘
   second (second (subT (map-+-distribʳ-assoc (shape S) (size ρ))) ∘
-          delay (mealy σ h)) ∘
-  inAssocˡ (mealy ρ h)
+          delay (mealy h σ)) ∘
+  inAssocˡ (mealy h ρ)
 
 -- The shape of morphism coming out of mealy matches the morphism shape coming
 -- in, and thus mealy can be applied repeatedly, e.g., mealy (mealy (mealy h)).
@@ -258,15 +258,15 @@ mealy {S} (ρ `⊎ σ) h =
 -- TODO: Generalize mealy to nonuniform timing (via prefix sums of timing).
 
 -- mapT as mealyS with empty state (S = ⊤)
-mapTM : ∀ ρ → (A ⇨ B) → Delays d A ρ ⇨ Delays d B ρ
-mapTM ρ f = unitorᵉʳ ∘ mealy ρ (unitorⁱʳ ∘ f ∘ unitorᵉˡ) ∘ unitorⁱˡ
+mapT : ∀ (f : A ⇨ B) ρ → Delays d A ρ ⇨ Delays d B ρ
+mapT f ρ = unitorᵉʳ ∘ mealy (unitorⁱʳ ∘ f ∘ unitorᵉˡ) ρ ∘ unitorⁱˡ
 
-scan : ∀ ρ → (B × A ⇨ Delay d B) →
+scan : ∀ (f : B × A ⇨ Delay d B) ρ →
   B × Delays d A ρ ⇨ Delays d (Delay d B) ρ × Delay (ρ *̂ d) B
-scan ρ f = mealy ρ (dup ∘ f)
+scan f = mealy (dup ∘ f)
 
-fold : ∀ ρ → (B × A ⇨ Delay d B) → B × Delays d A ρ ⇨ Delay (ρ *̂ d) B
-fold ρ f = exr ∘ scan ρ f
+fold : ∀ (f : B × A ⇨ Delay d B) ρ → B × Delays d A ρ ⇨ Delay (ρ *̂ d) B
+fold f ρ = exr ∘ scan f ρ
 
 -- TODO: Consistent naming scheme. Maybe mapD, scanD, foldD. Later, however,
 -- we'll want *nonsequential* timed variants.
@@ -291,9 +291,7 @@ up₁ = ⊕γ ▵ ∧γ
 
 -- Conditionally increment an n-bit natural number
 up : ∀ ρ → 𝔹 × Delays γ 𝔹 ρ ⇨ Delays γ (Delay γ 𝔹) ρ × Delay (ρ *̂ γ) 𝔹
-up ρ = mealy ρ up₁
-
--- TODO: move ρ later for better partial application
+up = mealy up₁
 
 -- Delays-Delay : ∀ n → Delays d (Delay e A) n ≡ Delay e (Delays d A n)
 Delays-Delay : ∀ ρ → Delays d (Delay e A) ρ ≡ Delay e (Delays d A ρ)
@@ -331,42 +329,40 @@ zipD⁻¹ (ρ `⊎ σ) = transpose ∘ (zipD⁻¹ ρ ⊗ delay (zipD⁻¹ σ))
 
 ---- Experiments in nested (higher-dimensional?) mealy machines
 
-mealy²₁ : ∀ ρ σ → (S × A ⇨ B × Delay d S) →
+mealy²₁ : ∀ (h : S × A ⇨ B × Delay d S) ρ σ →
   S × Delays (ρ *̂ d) (Delays d A ρ) σ ⇨
     Delays (ρ *̂ d) (Delays d B ρ) σ × Delay (σ *̂ (ρ *̂ d)) S
-mealy²₁ ρ σ h = mealy σ (mealy ρ h)
+mealy²₁ h ρ σ = mealy (mealy h ρ) σ
 
 up² : ∀ ρ σ →
   𝔹 × Delays (ρ *̂ γ) (Delays γ 𝔹 ρ) σ ⇨
     Delays (ρ *̂ γ) (Delays γ (Delay γ 𝔹) ρ) σ × Delay (σ *̂ (ρ *̂ γ)) 𝔹
-up² ρ σ = mealy²₁ ρ σ up₁
+up² = mealy²₁ up₁
 
 private module Foo (h : S × A ⇨ Delay e A × Delay d S) σ where
 
   foo₁ : S × Delays d A σ ⇨ Delays d (Delay e A) σ × Delay (σ *̂ d) S
-  foo₁ = mealy σ h
+  foo₁ = mealy h σ
 
   foo₂ : Delays d A σ × S ⇨ Delay (σ *̂ d) S × Delays d (Delay e A) σ
-  foo₂ = swap ∘ mealy σ h ∘ swap
+  foo₂ = swap ∘ mealy h σ ∘ swap
 
   foo₃ : Delays d A σ × S ⇨ Delay (σ *̂ d) S × Delay e (Delays d A σ)
-  foo₃ = second (sub≡ (Delays-Delay σ)) ∘ swap ∘ mealy σ h ∘ swap
+  foo₃ = second (sub≡ (Delays-Delay σ)) ∘ swap ∘ mealy h σ ∘ swap
 
   foo₄ : ∀ ρ → Delays d A σ × Delays e S ρ ⇨
            Delays e (Delay (σ *̂ d) S) ρ × Delay (ρ *̂ e) (Delays d A σ)
-  foo₄ ρ = mealy ρ foo₃
+  foo₄ ρ = mealy foo₃ ρ
 
   foo₅ : ∀ ρ → Delays d A σ × Delays e S ρ ⇨
            Delay (σ *̂ d) (Delays e S ρ) × Delay (ρ *̂ e) (Delays d A σ)
   foo₅ ρ = first (sub≡ (Delays-Delay ρ)) ∘ foo₄ ρ
 
--- TODO: ρ *̂ d = σ *̂ d
-
 mealy²₂ : (h : S × A ⇨ Delay e A × Delay d S) → ∀ ρ σ →
   Delays d A ρ × Delays e S σ ⇨
      Delay (ρ *̂ d) (Delays e S σ) × Delay (σ *̂ e) (Delays d A ρ)
 mealy²₂ h ρ σ = first (sub≡ (Delays-Delay σ)) ∘
-            mealy σ (second (sub≡ (Delays-Delay ρ)) ∘ swap ∘ mealy ρ h ∘ swap)
+            mealy (second (sub≡ (Delays-Delay ρ)) ∘ swap ∘ mealy h ρ ∘ swap) σ
 
 counter : ∀ ρ σ → Delays γ 𝔹 ρ × Delays γ 𝔹 σ ⇨
   Delay (ρ *̂ γ) (Delays γ 𝔹 σ) × Delay (σ *̂ γ) (Delays γ 𝔹 ρ)
