@@ -307,12 +307,12 @@ zipD⁻¹ (suc n) = transpose ∘ second (delay (zipD⁻¹ n))
 
 ---- Experiments in nested (higher-dimensional?) mealy machines
 
-mealy²₁ : (S × A ⇨ B × Delay d S) → ∀ m n →
+mealy²₁ : (S × A ⇨ B × Delay d S) → (m n : ℕ) →
   S × Delays (m * d) (Delays d A m) n ⇨
     Delays (m * d) (Delays d B m) n × Delay (n * (m * d)) S
 mealy²₁ h m n = mealy (mealy h m) n
 
-up² : ∀ m n →
+up² : (m n : ℕ) →
   𝔹 × Delays (m * γ) (Delays γ 𝔹 m) n ⇨
     Delays (m * γ) (Delays γ (Delay γ 𝔹) m) n × Delay (n * (m * γ)) 𝔹
 up² = mealy²₁ up₁
