@@ -1,13 +1,9 @@
--- This variant starts to replace V by Trie (both object-polymorphic). I have
--- mixed feelings about it. The novelty is fun. It eliminates V. I don't know of
--- anything specific it does better than the V version. The code is a bit more
--- complex. Making Trie object-polymorphic broke obvious injectivity, so I had
--- to introduce many explicit shape parameters. I already needed explicit vector
--- size parameters. I do like that it makes the sequential data more like
--- regular data. It rightly suggests that sequential computation is about not
--- just vectors, but traversables more generally. This last point might be the
--- most compelling feature of all of the above to me. I can define vectors,
--- trees, etc from Trie.
+-- A category of timed computation. Objects are time tries, and morphisms are
+-- computable functions between bit tries (easily generalized to arbitrary
+-- atomic types). The relationship to regular computable functions is a simple
+-- functor that forgets times. Later, we'll swap out functions (denotation) for
+-- a compilable representation, again with a functor back to semantics. As
+-- always, implementation correctness is semantic homomorphicity/functoriality.
 
 -- TODO: consider coproducts. What are timing structures for sums? Normally I
 -- don't think of sum types as tries, but they're probably *dependent* tries.
@@ -25,17 +21,9 @@ open import Relation.Binary.PropositionalEquality as ≡
 open import Categorical.Raw renaming (xor to ⊕; Bool to 𝔹)
 open import Functions 0ℓ
 
--- A category of timed computation. Objects are time tries, and morphisms are
--- computable functions between bit tries (easily generalized to arbitrary
--- atomic types). The relationship to regular computable functions is a simple
--- functor that forgets times. Later, we'll swap out functions (denotation) for
--- a compilable representation, again with a functor back to semantics. As
--- always, implementation correctness is semantic homomorphicity/functoriality.
-
-
-private variable ℓ o : Level
-
-private variable a b c : Set
+private variable
+  ℓ o : Level
+  a b c : Set
 
 infixr 1 _;_   -- unicode
 _;_ : ∀ {a : Set ℓ} {x y z : a} → x ≡ y → y ≡ z → x ≡ z
@@ -63,18 +51,12 @@ size (ρ `⊎ σ) = size ρ + size σ
 𝔽 zero = `⊥
 𝔽 (suc n) = `⊤ `⊎ 𝔽 n
 
--- Trie a ρ ≅ ⟦ ρ ⟧ → a
-
--- infixr 6 _▿_
--- data Trie (a : Set) : Shape → Set where
---   1̇ : Trie a `⊥
---   İ : a → Trie a `⊤
---   _▿_ : Trie a ρ → Trie a σ → Trie a (ρ `⊎ σ)
-
 Trie : {obj : Set o} ⦃ _ : Products obj ⦄ → obj → Shape → obj
 Trie a `⊥ = ⊤
 Trie a `⊤ = a
 Trie a (ρ `⊎ σ) = Trie a ρ × Trie a σ
+
+-- Trie a ρ ≅ ⟦ ρ ⟧ → a
 
 private variable u v : Trie a ρ
 
@@ -105,7 +87,7 @@ map-cong `⊥ f≗g = refl
 map-cong `⊤ f≗g = f≗g _
 map-cong (ρ `⊎ σ) f≗g = cong₂ _,_ (map-cong ρ f≗g) (map-cong σ f≗g)
 
--- Corollaries (map ∘ _+_ is a monoid homomorphism):
+-- Corollaries
 
 map-+-identityˡ : ∀ ρ {u : Trie 𝕋 ρ} → map ρ (0 +_) u ≡ u
 map-+-identityˡ = map-id
@@ -174,12 +156,11 @@ Retime h (obj ρ ts) = obj ρ (map ρ h ts)
 Delay : 𝕋 → Obj → Obj
 Delay d = Retime (d +_)
 
--- Progressively delayed objects
-
 infixl 7 _*̂_
 _*̂_ : Shape → 𝕋 → 𝕋
 ρ *̂ d = size ρ * d
 
+-- Progressively delayed rightward traversal
 Delays : 𝕋 → Obj → Shape → Obj
 Delays d A `⊥ = ⊤
 Delays d A `⊤ = A
@@ -396,4 +377,3 @@ counter = mealy²₂ up₁
 
 -- TODO: Write up notes, including untimed versions of mealy²₁ and mealy²₂ (and
 -- choose better names).
-
