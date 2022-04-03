@@ -14,3 +14,5 @@ import BinTreeFun
 import TreeFun
 
 import Timed
+import TimedCat
+import Spacetime
