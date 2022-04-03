@@ -365,8 +365,9 @@ mealy²₂ : (h : S × A ⇨ Delay e A × Delay d S) → ∀ ρ σ →
 mealy²₂ h ρ σ = first (sub≡ (Delays-Delay σ)) ∘
             mealy (second (sub≡ (Delays-Delay ρ)) ∘ swap ∘ mealy h ρ ∘ swap) σ
 
-counter : ∀ ρ σ → Delays γ 𝔹 ρ × Delays γ 𝔹 σ ⇨
-  Delay (ρ *̂ γ) (Delays γ 𝔹 σ) × Delay (σ *̂ γ) (Delays γ 𝔹 ρ)
+counter : ∀ ρ σ →
+  Delays γ 𝔹 ρ × Delays γ 𝔹 σ ⇨
+    Delay (ρ *̂ γ) (Delays γ 𝔹 σ) × Delay (σ *̂ γ) (Delays γ 𝔹 ρ)
 counter = mealy²₂ up₁
 
 -- counter takes a ρ-bit initial count and σ carries-in and yields σ
