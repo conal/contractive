@@ -4,16 +4,16 @@ module Timed (Atom : Set) where
 open import Level using (0ℓ)
 open import Function using (id; const; flip) renaming (_∘_ to _∘_)
 open import Data.Empty
-open import Data.Sum
-open import Data.Product as × hiding (zip)
+open import Data.Sum hiding (swap; assocˡ; assocʳ)
+open import Data.Product as × hiding (zip; swap; assocˡ; assocʳ)
 open import Data.Nat
 open import Data.Nat.Properties
 open import Relation.Binary.PropositionalEquality hiding ([_]; Extensionality)
 open ≡-Reasoning
 
 -- Time. ℕ for now.
-Time : Set
-Time = ℕ
+𝕋 : Set
+𝕋 = ℕ
 
 -- TODO: generalize from ℕ to any well-founded partial order. See
 -- Induction.WellFounded in agda-stdlib.
@@ -26,13 +26,13 @@ record Obj : Set₁ where
   constructor obj
   field
     {Index} : Set
-    times : Index → Time
+    times : Index → 𝕋
 
 open Obj public
 
 -- or ∃ λ i → I → Atom
 
-allAt : Time → Set → Obj
+allAt : 𝕋 → Set → Obj
 allAt d I = obj {I} (const d)
 
 obj₀ : Set → Obj
@@ -51,9 +51,9 @@ obj s ×̇ obj t = obj [ s , t ]
 -- Wrapper to help with time inference
 record Values (A : Obj) : Set where
   constructor vals
-  infix 9 _!_
+  infix 9 _‼_
   field
-    _!_ : Index A → Atom
+    _‼_ : Index A → Atom
 
 open Values public
 
@@ -62,10 +62,12 @@ infix 0 _→ᵗ_
 _→ᵗ_ : Obj → Obj → Set
 A →ᵗ B = Values A → Values B
 
+-- Alternatively, unwrap Values and wrap _→ᵗ_. Might not work out.
+
 private variable
   I J : Set
   A B C D : Obj
-  s t d e : Time
+  s t d e : 𝕋
   u v : Values A
   fᵗ gᵗ hᵗ : A →ᵗ B
 
@@ -96,6 +98,9 @@ exl = reindex inj₁
 exr : A ×̇ B →ᵗ B
 exr = reindex inj₂
 
+! : A →ᵗ ⊤̇
+! = reindex λ ()
+
 -- Then standard dup and ⊗ recipes
 
 dup : A →ᵗ A ×̇ A
@@ -107,35 +112,58 @@ f ⊗ g = f ∘ exl ▵ g ∘ exr       -- standard cartesian recipe
 
 -- f ⊗ g = zip ∘ ×.map f g ∘ unzip
 
-Retime : (h : Time → Time) → Obj → Obj
+swap : A ×̇ B →ᵗ B ×̇ A
+swap = exr ▵ exl
+
+first : (A →ᵗ C) → (A ×̇ B →ᵗ C ×̇ B)
+first f = f ⊗ id
+
+second : (B →ᵗ D) → (A ×̇ B →ᵗ A ×̇ D)
+second g = id ⊗ g
+
+assocˡ : A ×̇ (B ×̇ C) →ᵗ (A ×̇ B) ×̇ C
+assocˡ = second exl ▵ exr ∘ exr
+
+Retime : (h : 𝕋 → 𝕋) → Obj → Obj
 Retime h (obj ts) = obj (h ∘ ts)
 
-Delay : Time → Obj → Obj
+-- Generalize Retime to take ((I → 𝕋) → (I → 𝕋))
+
+Retime′ : (o@(obj {I} ts) : Obj) → ((I → 𝕋) → (I → 𝕋)) → Obj
+Retime′ o@(obj {I} ts) h = obj (h ts)
+
+-- I had to swap arguments, due to the type dependency.
+
+Delay : 𝕋 → Obj → Obj
 Delay d = Retime (d +_)
 
-retimeᵗ : (h : Time → Time) → A →ᵗ Retime h A
+-- Delay also generalizes to an indexed collection of delays
+
+retimeᵗ : (h : 𝕋 → 𝕋) → A →ᵗ Retime h A
 retimeᵗ _ (vals at) = vals at
 
 -- A guess. Useful?
-Retime₂ : (_⊕_ : Time → Time → Time) → Obj → Obj → Obj
+Retime₂ : (_⊕_ : 𝕋 → 𝕋 → 𝕋) → Obj → Obj → Obj
 Retime₂ _⊕_ (obj {I} s) (obj {J} t) = obj {I × J} (λ (i , j) → s i ⊕ t j)
 
-delayᵗ : {d : Time} → A →ᵗ Delay d A
+delayᵗ : {d : 𝕋} → A →ᵗ Delay d A
 delayᵗ {d = d} = retimeᵗ (d +_)
 
+-- shiftᵗ : 𝕋 → (A →ᵗ B) → (A →ᵗ B)
+-- shiftᵗ d f = λ { (vals h) → vals {!!} }
 
 module _ {A@(obj {I} ts) : Obj} where
 
   infix 4 _≡[_]_
-  _≡[_]_ : Values A → Time → Values A → Set
-  u ≡[ t ] v = ∀ (i : I) → ts i < t → u ! i ≡ v ! i
+  _≡[_]_ : Values A → 𝕋 → Values A → Set
+  u ≡[ t ] v = ∀ (i : I) → ts i < t → u ‼ i ≡ v ‼ i
 
 ≡[≤] : s ≤ t → u ≡[ t ] v → u ≡[ s ] v
 ≡[≤] s≤t u~ₜv i i<s = u~ₜv i (≤-trans i<s s≤t)
 
 -- Input influence is delayed by at least d steps.
 infix 4 _↓_
-_↓_ : (A →ᵗ B) → Time → Set
+_↓_ : (A →ᵗ B) → 𝕋 → Set
 f ↓ d = ∀ {e u v} → u ≡[ e ] v → f u ≡[ d + e ] f v
 
 causal : (A →ᵗ B) → Set
@@ -203,13 +231,13 @@ uniform↓ h u~v j t<e = cong (λ ● → h ● j) (extensionality (flip u~v t<e
 
 -- uniform↓ {t = t} h {e} {vals f} {vals g} u~v j t<e =
 --   begin
---     uniform {t = t} h (vals f) ! j
+--     uniform {t = t} h (vals f) ‼ j
 --   ≡⟨⟩
 --     h f j
 --   ≡⟨ cong (λ ● → h ● j) (ext (flip u~v t<e)) ⟩
 --     h g j
 --   ≡⟨⟩
---     uniform {t = t} h (vals g) ! j
+--     uniform {t = t} h (vals g) ‼ j
 --   ∎
 
 delay↓ : delayᵗ {A} ↓ d
@@ -217,13 +245,13 @@ delay↓ u~ₑv i d+t<d+e = u~ₑv i (+-cancelˡ-< _ d+t<d+e)
 
 -- delay↓ {d = d} {u = u} {v} u~ₑv i d+t<d+e =
 --   begin
---     delayᵗ d u ! i
+--     delayᵗ d u ‼ i
 --   ≡⟨⟩
---     u ! i
+--     u ‼ i
 --   ≡⟨ u~ₑv i (+-cancelˡ-< d d+t<d+e) ⟩
---     v ! i
+--     v ‼ i
 --   ≡⟨⟩
---     delayᵗ d v ! i
+--     delayᵗ d v ‼ i
 --   ∎
 
 const↓ : ∀ {y} → constant {A} {B} (const y)
@@ -235,7 +263,7 @@ record _→ᵈ_ (A B : Obj) : Set where
   constructor Δ
   field
     {f} : A →ᵗ B
-    {δ} : Time
+    {δ} : 𝕋
     f↓ : f ↓ δ
 
 -- Delayed functions form a cartesian category.
