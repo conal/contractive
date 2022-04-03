@@ -48,11 +48,6 @@ private variable
   ℓ o : Level
   a b c : Set
 
--- infixl 7 _·_
--- _·_ : ℕ → 𝕊 → 𝕊
--- zero  · t = ε
--- suc n · t = t + n · t
-
 infixr 1 _;_   -- unicode
 _;_ : ∀ {a : Set ℓ} {x y z : a} → x ≡ y → y ≡ z → x ≡ z
 _;_ = trans
