@@ -41,7 +41,7 @@ record _≈_ (u v : Stream A) : Set where
 
 open _≈_ public
 
--- Alternatively, `∀ i → u ! i ≡ v ! i`.
+-- Alternatively, `∀ i → u ! i ≡ v ! i`. See ≡[]⇒≈ below.
 
 -- _≈_ is an equivalence relation (and still will be if we generalize from
 -- equality to equivalence for elements).
@@ -141,16 +141,17 @@ zip : Stream A × Stream B → Stream (A × B)
 head (zip (u , v)) = head u , head v
 tail (zip (u , v)) = zip (tail u , tail v)
 
-zip-! : ∀ ((u , v) : Stream A × Stream B) i → zip (u , v) ! i ≡ (u ! i , v ! i)
+zip-! : ∀ ((u , v) : Stream A × Stream B) i →
+  zip (u , v) ! i ≡ (u ! i , v ! i)
 zip-! (u , v)  zero  = refl
 zip-! (u , v) (suc i) = zip-! (tail u , tail v) i
 
 unzip : Stream (A × B) → Stream A × Stream B
 unzip zs = map proj₁ zs , map proj₂ zs
 
-diagonal : Stream A →ˢ A
-head (diagonal xss) = head (head xss)
-tail (diagonal xss) = diagonal (map tail xss)
+-- diagonal : Stream A →ˢ A
+-- head (diagonal xss) = head (head xss)
+-- tail (diagonal xss) = diagonal (map tail xss)
 
 infixr 7 _⊗_
 _⊗_ : (A →ˢ C) → (B →ˢ D) → (A × B →ˢ C × D)
@@ -163,8 +164,8 @@ u ≡[ n ] v = ∀ i → i < n → u ! i ≡ v ! i
 
 -- Alternatively, take n u ≡ take n v
 
--- _≡[ n ]_ is an equivalence relation (and still will be if we generalize from
--- equality to equivalence for elements).
+-- _≡[ n ]_ is an equivalence relation (and still will be if we generalize
+-- from equality to equivalence for elements).
 
 ≡[]-refl : u ≡[ n ] u
 ≡[]-refl i i<n = refl
@@ -193,7 +194,6 @@ step-≡[] u~v u!n≡v!n i (s≤s i≤n) = case m≤n⇒m<n∨m≡n i≤n of λ
   { (inj₁ i<n ) → u~v i i<n
   ; (inj₂ refl) → u!n≡v!n
   }
-
 ≡[≤] : m ≤ n → u ≡[ n ] v → u ≡[ m ] v
 ≡[≤] m≤n s~ₙt i i<m = s~ₙt i (≤-trans i<m m≤n)
 
@@ -262,8 +262,8 @@ decomp↓ zero f↓ = ≈-refl
 head (decomp↓ (suc e) f↓) = head-↓ f↓
 tail (decomp↓ (suc e) f↓) = decomp↓ e (tail∘↓ f↓)
 
--- Since fˢ ↓ e + d → fˢ ↓ e, we could eliminate d from decomp↓. Wait and see how
--- uses of decomp↓ work out. I think drop∘↓ will appear.
+-- Since fˢ ↓ e + d → fˢ ↓ e, we could eliminate d from decomp↓. Wait and see
+-- how uses of decomp↓ work out. I think drop∘↓ will appear.
 
 id↓ : causal {A = A} id
 id↓ u~v = u~v
@@ -361,8 +361,8 @@ toggleᵈ′ : Bool →ᵈ Bool
 toggleᵈ′ = mapᵈ not ∘ᵈ bufferᵈ [ false ]
 
 
--- Package seed type and value with seed-parametrized coalgebra to get a Mealy
--- machine, denoting a causal stream function.
+-- Package seed type and value with seed-parametrized coalgebra to get a
+-- Mealy machine, denoting a causal stream function.
 infix 0 _→ᶜ_
 record _→ᶜ_ (A B : Set) : Set₁ where
   constructor mk
@@ -371,8 +371,10 @@ record _→ᶜ_ (A B : Set) : Set₁ where
     s₀ : S
     h : A × S → B × S
 
+-- Perform n steps of a Mealy machine.
 stepsᶜ : (A →ᶜ B) × Vec A n → (A →ᶜ B) × Vec B n
-stepsᶜ {A} {B} (mk {S = S} s h , as) = let bs , s′ = go (as , s) in mk s′ h , bs
+stepsᶜ {A} {B} (mk {S = S} s h , as) =
+  let bs , s′ = go (as , s) in mk s′ h , bs
  where
    go : Vec A n × S → Vec B n × S
    go ([] , s) = [] , s
@@ -463,6 +465,7 @@ mk {Δ = m} cs f ⊗ᵃ mk {Δ = n} ds g =
 
 -- TODO: State and prove semantic homomorphisms.
 
+
 -- Fixed point definition and proofs. Mirrors section 4 of "Representing
 -- Contractive Functions on Streams (Extended Version)"
 -- https://www.cs.nott.ac.uk/~pszgmh/bib.html#contractive .
@@ -516,4 +519,4 @@ module FixedPointᵃ ((mk {e} xs fᶜ) : A →ᵃ A) ⦃ e≡1+d : e ≡ suc d �
   fix with x₀ ∷ xs′ ← subst (Vec A) e≡1+d xs =
     FixedPointᵃ₁.fix (mk [ x₀ ] (bufferᶜ xs′ ∘ᶜ fᶜ))
 
--- TODO: Prove correctness, i.e., ⟦ FixedPointᵃ.fix f ⟧ ≈̂ FixedPoint.fix ⟦ f ⟧ .
+-- TODO: Prove correctness: ⟦ FixedPointᵃ.fix f ⟧ ≈̂ FixedPoint.fix ⟦ f ⟧
